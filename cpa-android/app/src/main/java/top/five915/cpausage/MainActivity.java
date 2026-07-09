@@ -2087,13 +2087,7 @@ public class MainActivity extends Activity {
     }
 
     private String managementApiBase() {
-        String value = quotaUrl == null || quotaUrl.length() == 0 ? DEFAULT_QUOTA_URL : quotaUrl;
-        int index = value.indexOf("/management.html");
-        if (index >= 0) value = value.substring(0, index);
-        int hash = value.indexOf('#');
-        if (hash >= 0) value = value.substring(0, hash);
-        while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
-        return value + "/v0/management";
+        return managementApiBaseFromUrl(quotaUrl);
     }
 
     private List<String> managementApiBaseCandidates() {
@@ -2110,11 +2104,18 @@ public class MainActivity extends Activity {
     }
 
     private String managementApiBaseFromUrl(String raw) {
-        String value = normalizeQuotaUrl(raw);
-        int index = value.indexOf("/management.html");
-        if (index >= 0) value = value.substring(0, index);
-        int hash = value.indexOf('#');
-        if (hash >= 0) value = value.substring(0, hash);
+        String value = raw == null ? "" : raw.trim();
+        if (value.length() == 0) value = DEFAULT_QUOTA_URL;
+        if (!value.startsWith("http://") && !value.startsWith("https://")) value = "https://" + value;
+        value = stripUrlHashAndQuery(value);
+        int apiIndex = value.indexOf("/v0/management");
+        if (apiIndex >= 0) {
+            value = value.substring(0, apiIndex + "/v0/management".length());
+            while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
+            return value;
+        }
+        int pageIndex = value.indexOf("/management.html");
+        if (pageIndex >= 0) value = value.substring(0, pageIndex);
         while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
         return value + "/v0/management";
     }
@@ -3018,7 +3019,8 @@ public class MainActivity extends Activity {
     private void toast(String value) { Toast.makeText(this, value, Toast.LENGTH_SHORT).show(); }
     private boolean isNetworkLikelyAvailable() { try { ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE); NetworkInfo info = cm == null ? null : cm.getActiveNetworkInfo(); return info != null && info.isConnected(); } catch (Exception e) { return true; } }
     private String normalizeBaseUrl(String raw) { String value = raw == null ? "" : raw.trim(); if (value.length() == 0) value = DEFAULT_BASE_URL; if (value.endsWith("/management.html")) value = value.substring(0, value.length() - "/management.html".length()); int hash = value.indexOf('#'); if (hash >= 0) value = value.substring(0, hash); if (!value.startsWith("http://") && !value.startsWith("https://")) value = "http://" + value; while (value.endsWith("/")) value = value.substring(0, value.length() - 1); return value; }
-    private String normalizeQuotaUrl(String raw) { String value = raw == null ? "" : raw.trim(); if (value.length() == 0) return DEFAULT_QUOTA_URL; if (!value.startsWith("http://") && !value.startsWith("https://")) value = "https://" + value; if (!value.contains("management.html")) { while (value.endsWith("/")) value = value.substring(0, value.length() - 1); value += "/management.html#/quota"; } else if (!value.contains("#")) value += "#/quota"; return value; }
+    private String normalizeQuotaUrl(String raw) { String value = raw == null ? "" : raw.trim(); if (value.length() == 0) return DEFAULT_QUOTA_URL; if (!value.startsWith("http://") && !value.startsWith("https://")) value = "https://" + value; value = stripUrlHashAndQuery(value); int apiIndex = value.indexOf("/v0/management"); if (apiIndex >= 0) value = value.substring(0, apiIndex); int pageIndex = value.indexOf("/management.html"); if (pageIndex >= 0) value = value.substring(0, pageIndex); while (value.endsWith("/")) value = value.substring(0, value.length() - 1); return value + "/management.html#/quota"; }
+    private String stripUrlHashAndQuery(String value) { int hash = value.indexOf('#'); if (hash >= 0) value = value.substring(0, hash); int query = value.indexOf('?'); if (query >= 0) value = value.substring(0, query); return value; }
     private String readSecret(String encryptedKey, String legacyPlainKey) { return secureStore == null ? "" : secureStore.read(encryptedKey, legacyPlainKey); }
     private boolean saveSecret(String encryptedKey, String legacyPlainKey, String value) { return secureStore != null && secureStore.write(encryptedKey, legacyPlainKey, value); }
     private void clearSecret(String encryptedKey, String legacyPlainKey) { if (secureStore != null) secureStore.remove(encryptedKey, legacyPlainKey); }
