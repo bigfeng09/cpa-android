@@ -792,13 +792,13 @@ public class MainActivity extends Activity {
 
     private void refreshQuotaAccounts() {
         if (quotaLoading) return;
-        if (managementKey == null || managementKey.trim().length() == 0) {
+        if (currentManagementKey().length() == 0) {
             quotaStatus = "缺少管理 Key";
             quotaDetail = "请输入管理 Key 后再刷新。网页端如果能登录，使用同一个 Key。";
             render();
             return;
         }
-        quotaUrl = correctedQuotaUrl(quotaUrl);
+        quotaUrl = currentQuotaUrl();
         prefs.edit().putString(KEY_QUOTA_URL, quotaUrl).apply();
         quotaLoading = true;
         quotaStatus = "正在刷新";
@@ -867,7 +867,7 @@ public class MainActivity extends Activity {
 
     private void refreshQuotaNative() {
         if (quotaLoading) return;
-        if (managementKey == null || managementKey.trim().length() == 0) {
+        if (currentManagementKey().length() == 0) {
             quotaStatus = "缺少管理 Key";
             quotaDetail = "请输入管理 Key 后再刷新。网页端如果能登录，使用同一个 Key。";
             render();
@@ -929,7 +929,7 @@ public class MainActivity extends Activity {
 
     private void refreshApiKeys() {
         if (apiKeysLoading) return;
-        if (managementKey == null || managementKey.trim().length() == 0) {
+        if (currentManagementKey().length() == 0) {
             apiKeysStatus = "缺少管理 Key";
             apiKeysDetail = "请先在设置页保存 CLI Proxy API 的管理 Key。";
             render();
@@ -1159,7 +1159,7 @@ public class MainActivity extends Activity {
     private void startCodexOAuth() {
         if (oauthLoading) return;
         focusOAuthAfterRender = true;
-        if (managementKey == null || managementKey.trim().length() == 0) {
+        if (currentManagementKey().length() == 0) {
             oauthStatus = "缺少管理 Key";
             oauthDetail = "请先在设置页保存 CLI Proxy API 的管理 Key。";
             render();
@@ -1481,7 +1481,7 @@ public class MainActivity extends Activity {
     }
 
     private void updateHeader() {
-        if (headerMeta != null) headerMeta.setText(selectedTab == 4 ? quotaUrl : baseUrl);
+        if (headerMeta != null) headerMeta.setText(selectedTab >= 4 ? currentManagementApiBase() : baseUrl);
         if (selectedTab == 4) {
             setStatus("账号", BLUE, SOFT_BLUE, "CLI Proxy API 账号额度");
             return;
@@ -2081,7 +2081,7 @@ public class MainActivity extends Activity {
 
     private Map<String, String> managementHeaders() {
         Map<String, String> headers = new HashMap<>();
-        headers.put("Authorization", "Bearer " + managementKey.trim());
+        headers.put("Authorization", "Bearer " + currentManagementKey());
         headers.put("Content-Type", "application/json");
         return headers;
     }
@@ -2216,7 +2216,7 @@ public class MainActivity extends Activity {
     private void refreshCodexQuota(String authIndex) {
         CodexQuotaAccount account = findQuotaAccount(authIndex);
         if (account == null || quotaLoading) return;
-        if (managementKey == null || managementKey.trim().length() == 0) {
+        if (currentManagementKey().length() == 0) {
             account.error = "请输入管理 Key 后再刷新。";
             render();
             return;
@@ -2246,7 +2246,7 @@ public class MainActivity extends Activity {
     private void resetCodexQuota(String authIndex) {
         CodexQuotaAccount account = findQuotaAccount(authIndex);
         if (account == null || quotaLoading) return;
-        if (managementKey == null || managementKey.trim().length() == 0) {
+        if (currentManagementKey().length() == 0) {
             account.error = "请输入管理 Key 后再重置。";
             render();
             return;
@@ -3021,6 +3021,9 @@ public class MainActivity extends Activity {
     private String normalizeBaseUrl(String raw) { String value = raw == null ? "" : raw.trim(); if (value.length() == 0) value = DEFAULT_BASE_URL; if (value.endsWith("/management.html")) value = value.substring(0, value.length() - "/management.html".length()); int hash = value.indexOf('#'); if (hash >= 0) value = value.substring(0, hash); if (!value.startsWith("http://") && !value.startsWith("https://")) value = "http://" + value; while (value.endsWith("/")) value = value.substring(0, value.length() - 1); return value; }
     private String normalizeQuotaUrl(String raw) { String value = raw == null ? "" : raw.trim(); if (value.length() == 0) return DEFAULT_QUOTA_URL; if (!value.startsWith("http://") && !value.startsWith("https://")) value = "https://" + value; value = stripUrlHashAndQuery(value); int apiIndex = value.indexOf("/v0/management"); if (apiIndex >= 0) value = value.substring(0, apiIndex); int pageIndex = value.indexOf("/management.html"); if (pageIndex >= 0) value = value.substring(0, pageIndex); while (value.endsWith("/")) value = value.substring(0, value.length() - 1); return value + "/management.html#/quota"; }
     private String stripUrlHashAndQuery(String value) { int hash = value.indexOf('#'); if (hash >= 0) value = value.substring(0, hash); int query = value.indexOf('?'); if (query >= 0) value = value.substring(0, query); return value; }
+    private String currentQuotaUrl() { String value = quotaUrl == null ? "" : quotaUrl.trim(); if (prefs != null) { String saved = prefs.getString(KEY_QUOTA_URL, value.length() == 0 ? DEFAULT_QUOTA_URL : value); if (saved != null && saved.trim().length() > 0) value = saved.trim(); } value = correctedQuotaUrl(value); quotaUrl = value; return value; }
+    private String currentManagementKey() { String value = managementKey == null ? "" : managementKey.trim(); if (value.length() == 0) value = readSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY); managementKey = value == null ? "" : value.trim(); return managementKey; }
+    private String currentManagementApiBase() { return managementApiBaseFromUrl(currentQuotaUrl()); }
     private String readSecret(String encryptedKey, String legacyPlainKey) { return secureStore == null ? "" : secureStore.read(encryptedKey, legacyPlainKey); }
     private boolean saveSecret(String encryptedKey, String legacyPlainKey, String value) { return secureStore != null && secureStore.write(encryptedKey, legacyPlainKey, value); }
     private void clearSecret(String encryptedKey, String legacyPlainKey) { if (secureStore != null) secureStore.remove(encryptedKey, legacyPlainKey); }
