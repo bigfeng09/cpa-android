@@ -29,7 +29,7 @@
 ### Verification
 
 - Ran from repository root:
-  - `rg -n -i '192\.168\.50\.7|cli\.591510809\.top|qinjianfeng1992@gmail\.com|C:\\Users\\Administrator\\Documents\\New project 2|/home/bigfeng|/mnt/user|moment-pic|MomentPic|Unraid|unraid' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
+  - `rg -n -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|legacy-project-name' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
   - Result: no matches in tracked CPA Android files after rewriting `PROGRESS.md`.
 - Ran from repository root:
   - `rg -n -i 'ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z\-_]{35}|xox[baprs]-[A-Za-z0-9-]+' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
@@ -38,7 +38,7 @@
   - `.\gradlew.bat :app:assembleDebug`
   - Result: `BUILD SUCCESSFUL`.
 - Ran APK privacy scan after copying the APK to a `.zip` and extracting it under `out/cpa-android-apk-scan`:
-  - `rg -n -a -i '192\.168\.50\.7|cli\.591510809\.top|qinjianfeng1992@gmail\.com|C:\\Users\\Administrator\\Documents\\New project 2|/home/bigfeng|/mnt/user|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
+  - `rg -n -a -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
   - Result: no matches.
 
 ### GitHub
