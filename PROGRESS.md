@@ -1,0 +1,51 @@
+# Progress
+
+## CPA Usage Android App MVP
+
+### Current State
+
+- Native Android MVP project lives in `cpa-android`.
+- UI design artifacts and developer handoff live in `output/ui`.
+- The app connects to user-configured CPA Usage Keeper and CLI Proxy API management endpoints.
+- Default example addresses are placeholders only:
+  - `http://your-host:8318`
+  - `https://your-domain.example/management.html#/quota`
+- Local secrets, API keys, passwords, build outputs, APK files, and machine-specific SDK config are excluded from Git.
+
+### Latest Fixes
+
+- Rechecked tracked CPA Android source, docs, manifest, resources, and generated debug APK for privacy leaks.
+- Kept only placeholder service examples in source and docs; removed previously tracked private endpoint/path references from the published tree.
+- Replaced plaintext `SharedPreferences` persistence for login password and management key with Android Keystore-backed encrypted storage, with cleanup of old legacy keys on logout.
+- Reduced UI exposure of account identifiers by masking visible `authIndex` values and avoiding raw quota-response body display in account cards.
+- Replaced the launcher icon with native Android adaptive icon resources built from in-repo vector assets.
+
+### Privacy Review
+
+- Working-tree scan found no committed passwords, bearer tokens, GitHub tokens, API keys, private LAN hosts, reverse-proxy domains, or personal filesystem paths in the tracked CPA Android files.
+- APK scan of `cpa-android/app/build/outputs/apk/debug/app-debug.apk` found no reviewed private strings.
+- Git history still contains older private strings in the previous `master` lineage and release/tag metadata, so publication requires rewriting `master` to the sanitized tree and removing the old release/tag before making the repo public.
+
+### Verification
+
+- Ran from repository root:
+  - `rg -n -i '192\.168\.50\.7|cli\.591510809\.top|qinjianfeng1992@gmail\.com|C:\\Users\\Administrator\\Documents\\New project 2|/home/bigfeng|/mnt/user|moment-pic|MomentPic|Unraid|unraid' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
+  - Result: no matches in tracked CPA Android files after rewriting `PROGRESS.md`.
+- Ran from repository root:
+  - `rg -n -i 'ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z\-_]{35}|xox[baprs]-[A-Za-z0-9-]+' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
+  - Result: no matches.
+- Ran from `cpa-android`:
+  - `.\gradlew.bat :app:assembleDebug`
+  - Result: `BUILD SUCCESSFUL`.
+- Ran APK privacy scan after copying the APK to a `.zip` and extracting it under `out/cpa-android-apk-scan`:
+  - `rg -n -a -i '192\.168\.50\.7|cli\.591510809\.top|qinjianfeng1992@gmail\.com|C:\\Users\\Administrator\\Documents\\New project 2|/home/bigfeng|/mnt/user|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
+  - Result: no matches.
+
+### GitHub
+
+- Source repository: `https://github.com/bigfeng09/cpa-android`
+- Current branch: `master`
+- Old remote release/tag still present before publication cleanup:
+  - release `apk-20260709-192327`
+  - tag `apk-20260709-192327`
+- Next action: rewrite `master` to the sanitized tree, delete the old release/tag, force-push the sanitized branch, then change the repository visibility to `public`.

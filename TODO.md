@@ -1,0 +1,17 @@
+# TODO
+
+- [x] Build the native Android MVP APK.
+- [x] Run source privacy scan.
+- [x] Remove hardcoded private endpoint examples and local paths from tracked source/docs.
+- [x] Rebuild APK from sanitized source.
+- [x] Run APK privacy scan.
+- [ ] Amend the initial commit with the sanitized tree.
+- [ ] Force-push sanitized `master` to GitHub.
+- [ ] Delete the old APK release/tag that was built before cleanup.
+- [ ] Publish a replacement sanitized APK release.
+- [ ] Install and test the latest APK on a real Android phone.
+- [ ] Verify user-configured CPA Usage Keeper HTTP/HTTPS connection.
+- [ ] Verify user-configured CLI Proxy API quota/account refresh.
+- [ ] Verify Codex OAuth authorization link, callback URL submission, and post-login account refresh.
+- [ ] Add backend-side paginated/aggregated endpoints for large usage/log datasets if mobile parsing is too slow.
+- [x] Move stored password / management key to Android Keystore-backed encrypted storage.
