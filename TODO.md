@@ -5,9 +5,10 @@
 - [x] Remove hardcoded private endpoint examples and local paths from tracked source/docs.
 - [x] Rebuild APK from sanitized source.
 - [x] Run APK privacy scan.
-- [ ] Amend the initial commit with the sanitized tree.
-- [ ] Force-push sanitized `master` to GitHub.
-- [ ] Delete the old APK release/tag that was built before cleanup.
+- [x] Rewrite `master` to the sanitized CPA Android tree.
+- [x] Force-push sanitized `master` to GitHub.
+- [x] Delete the old APK release/tag that was built before cleanup.
+- [x] Change the GitHub repository visibility to `public`.
 - [ ] Publish a replacement sanitized APK release.
 - [ ] Install and test the latest APK on a real Android phone.
 - [ ] Verify user-configured CPA Usage Keeper HTTP/HTTPS connection.

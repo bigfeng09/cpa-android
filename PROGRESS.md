@@ -24,7 +24,7 @@
 
 - Working-tree scan found no committed passwords, bearer tokens, GitHub tokens, API keys, private LAN hosts, reverse-proxy domains, or personal filesystem paths in the tracked CPA Android files.
 - APK scan of `cpa-android/app/build/outputs/apk/debug/app-debug.apk` found no reviewed private strings.
-- Git history still contains older private strings in the previous `master` lineage and release/tag metadata, so publication requires rewriting `master` to the sanitized tree and removing the old release/tag before making the repo public.
+- The previous private history and release/tag entry were replaced on `master` before publication.
 
 ### Verification
 
@@ -45,7 +45,7 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Old remote release/tag still present before publication cleanup:
-  - release `apk-20260709-192327`
-  - tag `apk-20260709-192327`
-- Next action: rewrite `master` to the sanitized tree, delete the old release/tag, force-push the sanitized branch, then change the repository visibility to `public`.
+- Current published commit: `6916fef`
+- Repository visibility: `public`
+- Old remote release/tag `apk-20260709-192327` was deleted before publication.
+- Next action: install and test the latest APK on a real Android phone against user-supplied endpoints.
