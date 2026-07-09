@@ -371,7 +371,7 @@ public class MainActivity extends Activity {
         quotaLp.setMargins(0, dp(14), 0, 0);
         panel.addView(quotaCard, quotaLp);
         quotaCard.addView(text("配额管理页", 16, TEXT, Typeface.BOLD));
-        addMuted(quotaCard, "默认接入管理中心配额页面，进入 App 后可在“配额”标签展示和刷新。 ");
+        addMuted(quotaCard, "默认接入管理中心账号页面，进入 App 后可在“账号”标签展示和刷新。 ");
         EditText quotaInput = input(quotaUrl);
         LinearLayout.LayoutParams qLp = new LinearLayout.LayoutParams(-1, dp(48));
         qLp.setMargins(0, dp(10), 0, 0);
@@ -1802,9 +1802,9 @@ public class MainActivity extends Activity {
         EditText q = input(quotaUrl);
         LinearLayout.LayoutParams qLp = new LinearLayout.LayoutParams(-1, dp(48)); qLp.setMargins(0, dp(12), 0, dp(12));
         quota.addView(q, qLp);
-        Button saveQ = secondaryButton("保存配额页地址");
+        Button saveQ = secondaryButton("保存账号页地址");
         quota.addView(saveQ, new LinearLayout.LayoutParams(-1, dp(48)));
-        saveQ.setOnClickListener(v -> { hideKeyboard(q); quotaUrl = correctedQuotaUrl(q.getText().toString()); prefs.edit().putString(KEY_QUOTA_URL, quotaUrl).apply(); toast("已保存配额页地址"); });
+        saveQ.setOnClickListener(v -> { hideKeyboard(q); quotaUrl = correctedQuotaUrl(q.getText().toString()); prefs.edit().putString(KEY_QUOTA_URL, quotaUrl).apply(); toast("已保存账号页地址"); });
 
         EditText key = input(managementKey);
         key.setHint("管理 Key / Management Key");

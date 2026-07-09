@@ -34,7 +34,7 @@
 `CLI Proxy API` 地址支持填写以下任一种：
 
 - 域名根地址，例如：`https://your-domain.example`
-- 配额页面地址，例如：`https://your-domain.example/management.html#/quota`
+- 账号页面地址，例如：`https://your-domain.example/management.html#/quota`
 - 管理 API 地址，例如：`https://your-domain.example/v0/management`
 
 ## 下载 APK
