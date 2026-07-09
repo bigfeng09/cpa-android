@@ -9,7 +9,7 @@
 - [x] Force-push sanitized `master` to GitHub.
 - [x] Delete the old APK release/tag that was built before cleanup.
 - [x] Change the GitHub repository visibility to `public`.
-- [ ] Publish a replacement sanitized APK release.
+- [x] Publish a replacement sanitized APK release.
 - [ ] Install and test the latest APK on a real Android phone.
 - [ ] Verify user-configured CPA Usage Keeper HTTP/HTTPS connection.
 - [ ] Verify user-configured CLI Proxy API quota/account refresh.

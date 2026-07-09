@@ -19,6 +19,8 @@
 - Replaced plaintext `SharedPreferences` persistence for login password and management key with Android Keystore-backed encrypted storage, with cleanup of old legacy keys on logout.
 - Reduced UI exposure of account identifiers by masking visible `authIndex` values and avoiding raw quota-response body display in account cards.
 - Replaced the launcher icon with native Android adaptive icon resources built from in-repo vector assets.
+- Fixed `CLI Proxy API` URL parsing so the account page refresh works when settings are filled with a root domain, `management.html#/quota`, or `/v0/management` API address.
+- Added a Chinese repository homepage README clarifying that the login page is for `CPA Usage Keeper`, while `CLI Proxy API` link and management key are filled later in the in-app `设置` page.
 
 ### Privacy Review
 
@@ -45,7 +47,8 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Current published commit: `6916fef`
+- Current published commit: `558b490`
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
+- Public APK release: `apk-20260709-public`
 - Next action: install and test the latest APK on a real Android phone against user-supplied endpoints.

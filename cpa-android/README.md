@@ -4,8 +4,8 @@
 
 ## 已实现
 
-- 登录页：可自行输入服务地址和密码，地址支持 `http://` 与 `https://`，可测试 `/api/v1/status`。
-- 登录密码会作为统计接口的 `Authorization: Bearer <密码>` 发送，同时作为管理中心配额刷新用的 Management Key 使用；本地保存时会优先使用 Android Keystore 加密。
+- 登录页：填写 `CPA Usage Keeper` 的服务地址和密码，地址支持 `http://` 与 `https://`，可测试 `/api/v1/status`。
+- 登录页中的密码会作为 `CPA Usage Keeper` 统计接口的 `Authorization: Bearer <密码>` 发送；本地保存时会优先使用 Android Keystore 加密。
 - 支持 `http://` 局域网地址，也支持 `https://` 反代链接。
 - 全局统计范围改为简洁下拉菜单：`4h`、`8h`、`24h`、`7天`、`30天`、`全部`、`自定义`。
 - 自定义范围使用原生日期选择器选择开始/结束日期，按开始日期 00:00 到结束日期次日 00:00 过滤。
@@ -15,14 +15,29 @@
 - 模型页：按当前范围展示模型请求量、成功率、Token、输入/输出、平均耗时、最近使用时间。
 - 凭证页：按当前范围展示脱敏 Key、请求数、成功率、Token、失败数、健康状态估算。
 - 日志页：按当前范围展示最近事件、仅错误筛选。
+- `CLI Proxy API` 配置不在登录页填写，而是在进入 App 后到 `设置` 页面填写。
 - 配额页：已改为纯原生 Android 页面，不再使用 WebView 嵌套。默认配额地址使用占位示例 `https://your-domain.example/management.html#/quota`，可以在设置页自行修改。
-- 输入管理 Key 后，App 会调用配额地址对应的 `/v0/management/auth-files` 和 `/v0/management/api-call` 读取 OAuth 配额；App 顶部刷新按钮会触发原生刷新。
+- 在 `设置` 页面填写 `CLI Proxy API` 链接和 `管理 Key` 后，进入 `账号` 页面点击刷新，App 会调用对应的 `/v0/management/auth-files` 和 `/v0/management/api-call` 读取 OAuth 配额；App 顶部刷新按钮也会触发原生刷新。
 - 配额页只展示已启用的 Codex 账号；接口返回停用、禁用、暂停或删除状态的账号会被隐藏，并且不会执行额度刷新。
 - 配额页现在按 Codex 账号分卡片展示：账号/文件名、套餐、续期时间、主动重置次数、5 小时限额、周/月限额、Code Review 限额、附加限额、重置次数有效期、错误信息。
 - 每个 Codex 账号卡片都有独立的 `刷新额度` 和 `重置额度` 按钮；顶部有 `刷新全部凭证`。重置额度会调用 Codex WHAM reset consume 接口，随后自动重新刷新该账号。
 - 设置页：修改统计服务地址和配额页地址。
 - 网络：允许局域网 HTTP 明文访问，同时可访问 HTTPS 反代管理页。
 - 图标：已切换为原生 Android adaptive icon，使用仓库内矢量资源生成，不依赖外部素材。
+
+## 配置流程
+
+1. 在登录页填写 `CPA Usage Keeper` 的服务地址和密码，进入 App。
+2. 进入底部 `设置` 页面。
+3. 在 `CLI Proxy API设置` 中填写链接和 `管理 Key / Management Key`。
+4. 保存后进入底部 `账号` 页面。
+5. 点击刷新，即可加载和刷新账号额度数据。
+
+`CLI Proxy API` 地址支持以下任一种：
+
+- `https://your-domain.example`
+- `https://your-domain.example/management.html#/quota`
+- `https://your-domain.example/v0/management`
 
 ## 已对接接口
 
