@@ -17,6 +17,7 @@
 - Replaced the repeated per-model price cards with one compact price editor driven by a model dropdown.
 - Added a cost model filter so the cost trend and estimated cost can switch between all models and one selected model.
 - Added tested shared cost calculation/filter helpers and updated the app to version `0.2.0` (`versionCode 3`).
+- Added a tag-driven GitHub Actions release workflow that verifies and publishes versioned APK assets.
 - Separated the CPA Usage Keeper login password from the CLI Proxy API management key; logging in no longer copies or overwrites the management key.
 - Added a one-time upgrade migration that clears a management key when it matches the old automatically copied login password.
 - Changed the management key field to a masked password input and added a real logout action that clears both encrypted credentials.
@@ -60,5 +61,5 @@
 - Current source version: `0.2.0` (`versionCode 3`)
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
-- Public APK release: `apk-20260709-public`
-- Next action: install and smoke-test the latest APK on a real Android phone against user-supplied endpoints, then publish a replacement APK release from the latest `master`.
+- Public APK release: `v0.2.0`
+- Next action: install and smoke-test the `v0.2.0` APK on a real Android phone against user-supplied endpoints.

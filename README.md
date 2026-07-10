@@ -39,8 +39,8 @@
 
 ## 下载 APK
 
-- Release 页面：<https://github.com/bigfeng09/cpa-android/releases/tag/apk-20260709-public>
-- 直接下载：<https://github.com/bigfeng09/cpa-android/releases/download/apk-20260709-public/app-debug.apk>
+- Release 页面：<https://github.com/bigfeng09/cpa-android/releases/tag/v0.2.0>
+- 直接下载：<https://github.com/bigfeng09/cpa-android/releases/download/v0.2.0/cpa-android-v0.2.0-debug.apk>
 
 ## 项目目录
 

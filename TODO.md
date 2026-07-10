@@ -21,4 +21,4 @@
 - [x] Add URL normalization unit tests and make Android Lint pass with zero issues.
 - [x] Add GitHub Actions verification for unit tests, lint, and debug APK assembly.
 - [x] Simplify pricing to one shared editor with a model selector and add all-model/single-model cost filtering.
-- [ ] Publish a fresh APK release from the latest `master` after device smoke testing.
+- [x] Publish a fresh `v0.2.0` APK release from the latest verified source.

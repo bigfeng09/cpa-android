@@ -1,0 +1,63 @@
+name: GitHub release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: cpa-android/**/*.gradle*
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-36"
+
+      - name: Test, lint, and build
+        working-directory: cpa-android
+        run: .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon
+
+      - name: Prepare release APK
+        shell: pwsh
+        run: |
+          $assetName = "cpa-android-$env:GITHUB_REF_NAME-debug.apk"
+          Copy-Item "cpa-android/app/build/outputs/apk/debug/app-debug.apk" $assetName
+          "RELEASE_ASSET=$assetName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $notesPath = "release-notes/$tag.md"
+          $arguments = @(
+            'release', 'create', $tag, $env:RELEASE_ASSET,
+            '--title', "CPA Android $tag",
+            '--latest', '--verify-tag'
+          )
+          if (Test-Path $notesPath) {
+            $arguments += @('--notes-file', $notesPath)
+          } else {
+            $arguments += '--generate-notes'
+          }
+          & gh @arguments
+          if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed" }
