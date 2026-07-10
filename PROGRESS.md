@@ -14,6 +14,13 @@
 
 ### Latest Fixes
 
+- Separated the CPA Usage Keeper login password from the CLI Proxy API management key; logging in no longer copies or overwrites the management key.
+- Added a one-time upgrade migration that clears a management key when it matches the old automatically copied login password.
+- Changed the management key field to a masked password input and added a real logout action that clears both encrypted credentials.
+- Extracted URL normalization into a testable Java utility and added seven unit tests covering root domains, management page URLs, and management API URLs.
+- Fixed all Android Lint findings, including invalid integer view IDs, accessibility click handling, draw-time allocations, RTL gravity, backup rules, and hardcoded `setText` strings.
+- Added Windows GitHub Actions verification for unit tests, Android Lint, APK assembly, and debug APK artifact upload.
+- Updated the app to version `0.1.1` (`versionCode 2`), Java 17, and Android compile/target SDK 36.
 - Rechecked tracked CPA Android source, docs, manifest, resources, and generated debug APK for privacy leaks.
 - Kept only placeholder service examples in source and docs; removed previously tracked private endpoint/path references from the published tree.
 - Replaced plaintext `SharedPreferences` persistence for login password and management key with Android Keystore-backed encrypted storage, with cleanup of old legacy keys on logout.
@@ -37,8 +44,8 @@
   - `rg -n -i 'ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z\-_]{35}|xox[baprs]-[A-Za-z0-9-]+' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
   - Result: no matches.
 - Ran from `cpa-android`:
-  - `.\gradlew.bat :app:assembleDebug`
-  - Result: `BUILD SUCCESSFUL`.
+  - `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon`
+  - Result: `BUILD SUCCESSFUL`; 7 unit tests passed; Android Lint reported no issues.
 - Ran APK privacy scan after copying the APK to a `.zip` and extracting it under `out/cpa-android-apk-scan`:
   - `rg -n -a -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
   - Result: no matches.
@@ -47,8 +54,8 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Current published commit: `558b490`
+- Current source version: `0.1.1` (`versionCode 2`)
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
 - Public APK release: `apk-20260709-public`
-- Next action: install and test the latest APK on a real Android phone against user-supplied endpoints.
+- Next action: install and smoke-test the latest APK on a real Android phone against user-supplied endpoints, then publish a replacement APK release from the latest `master`.

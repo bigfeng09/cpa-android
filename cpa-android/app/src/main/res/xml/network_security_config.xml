@@ -1,4 +1,6 @@
-<network-security-config>
+<network-security-config xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="InsecureBaseConfiguration">
+    <!-- User-configured private LAN endpoints may require HTTP. The UI warns users to prefer HTTPS. -->
     <base-config cleartextTrafficPermitted="true" />
 </network-security-config>
 

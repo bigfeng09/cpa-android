@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">CPA Usage</string>
+    <string name="sample_http_url" translatable="false">http://your-host:8318</string>
+    <string name="sample_https_url" translatable="false">https://your-domain.example</string>
+    <string name="testing_status">正在测试 /api/v1/status…</string>
+    <string name="connection_failed_format">连接失败：%1$s</string>
+    <string name="status_meta_format">  %1$s</string>
 </resources>
 

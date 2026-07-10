@@ -6,6 +6,7 @@
 
 - 登录页：填写 `CPA Usage Keeper` 的服务地址和密码，地址支持 `http://` 与 `https://`，可测试 `/api/v1/status`。
 - 登录页中的密码会作为 `CPA Usage Keeper` 统计接口的 `Authorization: Bearer <密码>` 发送；本地保存时会优先使用 Android Keystore 加密。
+- `CPA Usage Keeper` 密码和 `CLI Proxy API` Management Key 完全分开保存，登录不会再覆盖 Management Key；旧版本自动复制的同值 Key 会在升级后清理一次。
 - 支持 `http://` 局域网地址，也支持 `https://` 反代链接。
 - 全局统计范围改为简洁下拉菜单：`4h`、`8h`、`24h`、`7天`、`30天`、`全部`、`自定义`。
 - 自定义范围使用原生日期选择器选择开始/结束日期，按开始日期 00:00 到结束日期次日 00:00 过滤。
@@ -21,7 +22,7 @@
 - 账号页只展示已启用的 Codex 账号；接口返回停用、禁用、暂停或删除状态的账号会被隐藏，并且不会执行额度刷新。
 - 账号页现在按 Codex 账号分卡片展示：账号/文件名、套餐、续期时间、主动重置次数、5 小时限额、周/月限额、Code Review 限额、附加限额、重置次数有效期、错误信息。
 - 每个 Codex 账号卡片都有独立的 `刷新额度` 和 `重置额度` 按钮；顶部有 `刷新全部凭证`。重置额度会调用 Codex WHAM reset consume 接口，随后自动重新刷新该账号。
-- 设置页：修改统计服务地址和账号页地址。
+- 设置页：修改统计服务地址、账号页地址和 Management Key。Management Key 使用密码输入框隐藏，退出会清除两套本地凭据。
 - 网络：允许局域网 HTTP 明文访问，同时可访问 HTTPS 反代管理页。
 - 图标：已切换为原生 Android adaptive icon，使用仓库内矢量资源生成，不依赖外部素材。
 
@@ -76,7 +77,7 @@ App 会按网页端字段解析 `rate_limit.primary_window`、`rate_limit.second
 
 ```powershell
 cd cpa-android
-.\gradlew.bat :app:assembleDebug
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug
 ```
 
 Debug APK：
@@ -90,12 +91,12 @@ cpa-android/app/build/outputs/apk/debug/app-debug.apk
 已在 Windows 本机执行：
 
 ```powershell
-.\gradlew.bat :app:assembleDebug
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon
 ```
 
-结果：`BUILD SUCCESSFUL`。
+结果：`BUILD SUCCESSFUL`；URL 归一化单元测试 `7/7` 通过，Android Lint `0` 项。
 
-最近一次验证：2026-07-09，APK 路径仍为 `app/build/outputs/apk/debug/app-debug.apk`。
+最近一次验证：2026-07-10，APK 路径仍为 `app/build/outputs/apk/debug/app-debug.apk`。
 
 ## 后续建议
 

@@ -15,7 +15,8 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -73,6 +74,8 @@ public class MainActivity extends Activity {
     private static final String KEY_LOGIN_PASSWORD = "login_password";
     private static final String KEY_MANAGEMENT_KEY_ENCRYPTED = "management_key_encrypted";
     private static final String KEY_LOGIN_PASSWORD_ENCRYPTED = "login_password_encrypted";
+    private static final String KEY_LOGGED_IN = "logged_in";
+    private static final String KEY_CREDENTIALS_SEPARATED = "credentials_separated_v1";
     private static final String KEY_SELECTED_RANGE = "selected_range";
     private static final String KEY_CUSTOM_START_DATE = "custom_start_date";
     private static final String KEY_CUSTOM_END_DATE = "custom_end_date";
@@ -154,6 +157,7 @@ public class MainActivity extends Activity {
     private LinearLayout bottomNav;
     private TextView headerMeta;
     private TextView statusPill;
+    private TextView refreshStatusMeta;
     private TextView[] navItems;
 
     @Override
@@ -166,18 +170,13 @@ public class MainActivity extends Activity {
         quotaUrl = correctedQuotaUrl(quotaUrl);
         managementKey = readSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY);
         loginPassword = readSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD);
+        migrateSeparatedCredentials();
         selectedRange = Math.max(RANGE_4H, Math.min(RANGE_CUSTOM, prefs.getInt(KEY_SELECTED_RANGE, RANGE_4H)));
         customStartDate = prefs.getString(KEY_CUSTOM_START_DATE, "");
         customEndDate = prefs.getString(KEY_CUSTOM_END_DATE, "");
-        if (managementKey.length() == 0) {
-            managementKey = loginPassword;
-            if (managementKey.length() > 0) saveSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY, managementKey);
-        }
         loadLocalPrices();
-        getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(Color.WHITE);
 
-        if (prefs.contains(KEY_BASE_URL)) {
+        if (prefs.getBoolean(KEY_LOGGED_IN, prefs.contains(KEY_BASE_URL))) {
             showApp();
             refreshAll();
         } else {
@@ -189,11 +188,6 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         executor.shutdownNow();
-    }
-
-    @Override
-    public void onBackPressed() {
-        super.onBackPressed();
     }
 
     private void showLoginScreen() {
@@ -213,13 +207,14 @@ public class MainActivity extends Activity {
         panel.addView(card, cardLp);
         card.addView(text("服务地址", 16, TEXT, Typeface.BOLD));
         addMuted(card, "示例：http://your-host:8318 或 https://your-domain.example");
+        addMuted(card, "HTTP 仅建议用于可信局域网；密码会随请求发送，请优先使用 HTTPS。");
         EditText addressInput = input(prefs.contains(KEY_BASE_URL) ? baseUrl : "");
         addressInput.setHint("http://your-host:8318 或 https://your-domain.example");
         LinearLayout.LayoutParams addressLp = new LinearLayout.LayoutParams(-1, dp(48));
         addressLp.setMargins(0, dp(10), 0, 0);
         card.addView(addressInput, addressLp);
 
-        card.addView(text("密码 / 管理 Key", 16, TEXT, Typeface.BOLD));
+        card.addView(text("CPA Usage Keeper 密码", 16, TEXT, Typeface.BOLD));
         EditText passwordInput = passwordInput(loginPassword);
         LinearLayout.LayoutParams passwordLp = new LinearLayout.LayoutParams(-1, dp(48));
         passwordLp.setMargins(0, dp(10), 0, 0);
@@ -234,12 +229,12 @@ public class MainActivity extends Activity {
         card.addView(shortcuts, new LinearLayout.LayoutParams(-1, dp(54)));
         Button httpBtn = secondaryButton("HTTP 示例");
         shortcuts.addView(httpBtn, weightLp(1));
-        httpBtn.setOnClickListener(v -> addressInput.setText("http://your-host:8318"));
+        httpBtn.setOnClickListener(v -> addressInput.setText(getString(R.string.sample_http_url)));
         Button httpsBtn = secondaryButton("HTTPS 示例");
         LinearLayout.LayoutParams httpsLp = weightLp(1);
         httpsLp.setMargins(dp(10), 0, 0, 0);
         shortcuts.addView(httpsBtn, httpsLp);
-        httpsBtn.setOnClickListener(v -> addressInput.setText("https://your-domain.example"));
+        httpsBtn.setOnClickListener(v -> addressInput.setText(getString(R.string.sample_https_url)));
 
         Button testBtn = secondaryButton("测试地址");
         LinearLayout.LayoutParams testLp = new LinearLayout.LayoutParams(-1, dp(46));
@@ -250,7 +245,7 @@ public class MainActivity extends Activity {
             String url = normalizeBaseUrl(addressInput.getText().toString());
             String pass = passwordInput.getText().toString().trim();
             testBtn.setEnabled(false);
-            status.setText("正在测试 /api/v1/status...");
+            status.setText(R.string.testing_status);
             executor.execute(() -> {
                 try {
                     JSONObject obj = new JSONObject(getWithPassword(url, "/api/v1/status", pass, 8000, 15000));
@@ -258,7 +253,7 @@ public class MainActivity extends Activity {
                     String lastRun = obj.optString("last_run_at", "");
                     runOnUiThread(() -> status.setText(running ? "连接成功，服务在线。最近同步：" + shortTime(lastRun) : "连接成功，但服务状态不是 running。"));
                 } catch (Exception e) {
-                    runOnUiThread(() -> status.setText("连接失败：" + cleanError(e)));
+                    runOnUiThread(() -> status.setText(getString(R.string.connection_failed_format, cleanError(e))));
                 } finally {
                     runOnUiThread(() -> testBtn.setEnabled(true));
                 }
@@ -273,15 +268,14 @@ public class MainActivity extends Activity {
             hideKeyboard(passwordInput);
             baseUrl = normalizeBaseUrl(addressInput.getText().toString());
             loginPassword = passwordInput.getText().toString().trim();
-            managementKey = loginPassword;
             quotaUrl = correctedQuotaUrl(quotaUrl);
             boolean passwordSaved = saveSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD, loginPassword);
-            boolean keySaved = saveSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY, managementKey);
             prefs.edit()
                     .putString(KEY_BASE_URL, baseUrl)
                     .putString(KEY_QUOTA_URL, quotaUrl)
+                    .putBoolean(KEY_LOGGED_IN, true)
                     .apply();
-            if (!passwordSaved || !keySaved) toast("凭据未能加密保存，仅本次会话可用");
+            if (!passwordSaved) toast("密码未能加密保存，仅本次会话可用");
             showApp();
             refreshAll();
         });
@@ -329,7 +323,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams httpsLp = weightLp(1);
         httpsLp.setMargins(dp(10), 0, 0, 0);
         actions.addView(httpsBtn, httpsLp);
-        httpsBtn.setOnClickListener(v -> input.setText("https://your-domain.example"));
+        httpsBtn.setOnClickListener(v -> input.setText(getString(R.string.sample_https_url)));
 
         Button testBtn = secondaryButton("测试连接");
         LinearLayout.LayoutParams testLp = new LinearLayout.LayoutParams(-1, dp(46));
@@ -339,7 +333,7 @@ public class MainActivity extends Activity {
             hideKeyboard(input);
             String url = normalizeBaseUrl(input.getText().toString());
             testBtn.setEnabled(false);
-            status.setText("正在测试 /api/v1/status...");
+            status.setText(R.string.testing_status);
             executor.execute(() -> {
                 try {
                     JSONObject obj = new JSONObject(get(url, "/api/v1/status", 8000, 15000));
@@ -347,7 +341,7 @@ public class MainActivity extends Activity {
                     String lastRun = obj.optString("last_run_at", "");
                     runOnUiThread(() -> status.setText(running ? "连接成功，服务在线。最近同步：" + shortTime(lastRun) : "连接成功，但服务状态不是 running。"));
                 } catch (Exception e) {
-                    runOnUiThread(() -> status.setText("连接失败：" + cleanError(e)));
+                    runOnUiThread(() -> status.setText(getString(R.string.connection_failed_format, cleanError(e))));
                 } finally {
                     runOnUiThread(() -> testBtn.setEnabled(true));
                 }
@@ -423,9 +417,8 @@ public class MainActivity extends Activity {
         header.addView(statusRow, new LinearLayout.LayoutParams(-1, -2));
         statusPill = pill("未刷新", MUTED, Color.rgb(239, 242, 247));
         statusRow.addView(statusPill);
-        TextView last = text("  等待数据", 12, MUTED, Typeface.NORMAL);
-        last.setId(2001);
-        statusRow.addView(last, new LinearLayout.LayoutParams(0, -2, 1));
+        refreshStatusMeta = text("  等待数据", 12, MUTED, Typeface.NORMAL);
+        statusRow.addView(refreshStatusMeta, new LinearLayout.LayoutParams(0, -2, 1));
 
         content = vertical();
         root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -1560,7 +1553,7 @@ public class MainActivity extends Activity {
         health.addView(healthTop);
         healthTop.addView(pill("稳定性", MUTED, Color.rgb(247, 244, 238)));
         TextView range = text(rangeLabel(selectedRange), 12, MUTED, Typeface.NORMAL);
-        range.setGravity(Gravity.RIGHT);
+        range.setGravity(Gravity.END);
         LinearLayout.LayoutParams rangeLp = new LinearLayout.LayoutParams(0, -2, 1);
         rangeLp.setMargins(dp(8), 0, dp(8), 0);
         healthTop.addView(range, rangeLp);
@@ -1782,6 +1775,7 @@ public class MainActivity extends Activity {
         quotaDetail = "输入管理 Key 后可读取每个 Codex 账号的实时额度。";
         clearSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD);
         clearSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY);
+        prefs.edit().putBoolean(KEY_LOGGED_IN, false).apply();
         showLoginScreen();
     }
 
@@ -1789,6 +1783,7 @@ public class MainActivity extends Activity {
         LinearLayout card = card();
         content.addView(card, matchWrapWithBottom(dp(12)));
         card.addView(text("CPA Usage Keeper设置", 16, TEXT, Typeface.BOLD));
+        addMuted(card, "HTTP 仅建议用于可信局域网；公网或不可信网络请使用 HTTPS。");
         EditText input = input(baseUrl);
         LinearLayout.LayoutParams inputLp = new LinearLayout.LayoutParams(-1, dp(48)); inputLp.setMargins(0, dp(12), 0, dp(12));
         card.addView(input, inputLp);
@@ -1806,7 +1801,7 @@ public class MainActivity extends Activity {
         quota.addView(saveQ, new LinearLayout.LayoutParams(-1, dp(48)));
         saveQ.setOnClickListener(v -> { hideKeyboard(q); quotaUrl = correctedQuotaUrl(q.getText().toString()); prefs.edit().putString(KEY_QUOTA_URL, quotaUrl).apply(); toast("已保存账号页地址"); });
 
-        EditText key = input(managementKey);
+        EditText key = passwordInput(managementKey);
         key.setHint("管理 Key / Management Key");
         LinearLayout.LayoutParams keyLp = new LinearLayout.LayoutParams(-1, dp(48)); keyLp.setMargins(0, dp(12), 0, dp(12));
         quota.addView(key, keyLp);
@@ -1814,10 +1809,10 @@ public class MainActivity extends Activity {
         quota.addView(saveKey, new LinearLayout.LayoutParams(-1, dp(48)));
         saveKey.setOnClickListener(v -> { hideKeyboard(key); managementKey = key.getText().toString().trim(); toast(saveSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY, managementKey) ? "已保存管理 Key" : "管理 Key 未能加密保存，仅本次会话可用"); });
 
-        Button relogin = primaryButton("返回登录页");
+        Button relogin = primaryButton("退出并清除凭据");
         LinearLayout.LayoutParams reloginLp = new LinearLayout.LayoutParams(-1, dp(48)); reloginLp.setMargins(0, dp(12), 0, 0);
         quota.addView(relogin, reloginLp);
-        relogin.setOnClickListener(v -> showLoginScreen());
+        relogin.setOnClickListener(v -> logoutToLogin());
     }
 
     private void parseSession(DataSnapshot target, JSONObject obj) { target.authenticated = obj.optBoolean("authenticated", false); }
@@ -2103,22 +2098,7 @@ public class MainActivity extends Activity {
         out.add(value);
     }
 
-    private String managementApiBaseFromUrl(String raw) {
-        String value = raw == null ? "" : raw.trim();
-        if (value.length() == 0) value = DEFAULT_QUOTA_URL;
-        if (!value.startsWith("http://") && !value.startsWith("https://")) value = "https://" + value;
-        value = stripUrlHashAndQuery(value);
-        int apiIndex = value.indexOf("/v0/management");
-        if (apiIndex >= 0) {
-            value = value.substring(0, apiIndex + "/v0/management".length());
-            while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
-            return value;
-        }
-        int pageIndex = value.indexOf("/management.html");
-        if (pageIndex >= 0) value = value.substring(0, pageIndex);
-        while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
-        return value + "/v0/management";
-    }
+    private String managementApiBaseFromUrl(String raw) { return UrlUtils.managementApiBaseFromUrl(raw, DEFAULT_QUOTA_URL); }
 
     private String correctedQuotaUrl(String raw) {
         String value = normalizeQuotaUrl(raw);
@@ -2940,7 +2920,7 @@ public class MainActivity extends Activity {
         parent.addView(labels);
         labels.addView(text(points.get(0).label, 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(0, -2, 1));
         TextView right = text(latest.label, 11, MUTED, Typeface.NORMAL);
-        right.setGravity(Gravity.RIGHT);
+        right.setGravity(Gravity.END);
         labels.addView(right, new LinearLayout.LayoutParams(0, -2, 1));
         if (label != null && label.length() > 0) {
             TextView caption = text(label, 12, MUTED, Typeface.NORMAL);
@@ -2988,13 +2968,13 @@ public class MainActivity extends Activity {
 
     private String readAll(InputStream stream) throws IOException { if (stream == null) return ""; ByteArrayOutputStream out = new ByteArrayOutputStream(); byte[] buffer = new byte[16 * 1024]; int n; while ((n = stream.read(buffer)) >= 0) out.write(buffer, 0, n); stream.close(); return out.toString("UTF-8"); }
 
-    private void setStatus(String label, int color, int bg, String meta) { if (statusPill != null) { statusPill.setText(label); statusPill.setTextColor(color); statusPill.setBackground(round(bg, 16)); } if (header != null) { TextView last = header.findViewById(2001); if (last != null) last.setText("  " + meta); } }
+    private void setStatus(String label, int color, int bg, String meta) { if (statusPill != null) { statusPill.setText(label); statusPill.setTextColor(color); statusPill.setBackground(round(bg, 16)); } if (refreshStatusMeta != null) refreshStatusMeta.setText(getString(R.string.status_meta_format, meta)); }
     private void updateNav() { if (navItems == null) return; for (int i = 0; i < navItems.length; i++) { boolean on = i == selectedTab; navItems[i].setTextColor(on ? BLUE : MUTED); navItems[i].setBackground(round(on ? SOFT_BLUE : Color.TRANSPARENT, 8)); } }
     private void addMetricGrid(LinearLayout parent, Metric[] metrics) { for (int i = 0; i < metrics.length; i += 2) { LinearLayout row = horizontal(); parent.addView(row, matchWrapWithBottom(dp(10))); addMetricCard(row, metrics[i], 0); if (i + 1 < metrics.length) addMetricCard(row, metrics[i + 1], dp(10)); } }
     private void addMetricCard(LinearLayout row, Metric metric, int leftMargin) { LinearLayout card = card(); LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1); lp.setMargins(leftMargin, 0, 0, 0); row.addView(card, lp); card.addView(text(metric.label, 12, MUTED, Typeface.NORMAL)); TextView value = text(metric.value, 23, TEXT, Typeface.BOLD); value.setPadding(0, dp(8), 0, dp(4)); card.addView(value); card.addView(text(metric.sub, 12, MUTED, Typeface.NORMAL)); }
     private void addSectionTitle(String title, String subtitle) { LinearLayout box = vertical(); box.setPadding(dp(4), dp(2), dp(4), dp(12)); content.addView(box); box.addView(text(title, 20, TEXT, Typeface.BOLD)); TextView sub = text(subtitle, 12, MUTED, Typeface.NORMAL); sub.setPadding(0, dp(4), 0, 0); box.addView(sub); }
-    private void addKeyValue(LinearLayout parent, String key, String value) { LinearLayout row = horizontal(); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, dp(9), 0, 0); parent.addView(row); row.addView(text(key, 13, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(0, -2, 1)); TextView v = text(value == null ? "" : value, 13, TEXT, Typeface.BOLD); v.setGravity(Gravity.RIGHT); row.addView(v, new LinearLayout.LayoutParams(0, -2, 2)); }
-    private void addProgress(LinearLayout parent, String label, long value, long max) { LinearLayout row = horizontal(); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, dp(10), 0, 0); parent.addView(row); row.addView(text(label, 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(dp(92), -2)); ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); bar.setMax(100); bar.setProgress((int) Math.max(1, Math.min(100, value * 100 / Math.max(1, max)))); row.addView(bar, new LinearLayout.LayoutParams(0, dp(12), 1)); TextView val = text(formatCount(value), 12, TEXT, Typeface.BOLD); val.setGravity(Gravity.RIGHT); row.addView(val, new LinearLayout.LayoutParams(dp(76), -2)); }
+    private void addKeyValue(LinearLayout parent, String key, String value) { LinearLayout row = horizontal(); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, dp(9), 0, 0); parent.addView(row); row.addView(text(key, 13, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(0, -2, 1)); TextView v = text(value == null ? "" : value, 13, TEXT, Typeface.BOLD); v.setGravity(Gravity.END); row.addView(v, new LinearLayout.LayoutParams(0, -2, 2)); }
+    private void addProgress(LinearLayout parent, String label, long value, long max) { LinearLayout row = horizontal(); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(0, dp(10), 0, 0); parent.addView(row); row.addView(text(label, 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(dp(92), -2)); ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal); bar.setMax(100); bar.setProgress((int) Math.max(1, Math.min(100, value * 100 / Math.max(1, max)))); row.addView(bar, new LinearLayout.LayoutParams(0, dp(12), 1)); TextView val = text(formatCount(value), 12, TEXT, Typeface.BOLD); val.setGravity(Gravity.END); row.addView(val, new LinearLayout.LayoutParams(dp(76), -2)); }
     private void addLogRow(LinearLayout parent, LogEntry log, boolean compact) { LinearLayout row = vertical(); row.setPadding(0, dp(12), 0, 0); parent.addView(row); LinearLayout top = horizontal(); top.setGravity(Gravity.CENTER_VERTICAL); row.addView(top); top.addView(pill(log.failed ? "ERROR" : "OK", log.failed ? RED : GREEN, log.failed ? SOFT_RED : SOFT_GREEN)); top.addView(text("  " + nonEmpty(shortTime(log.timestamp), "未知时间"), 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(0, -2, 1)); if (log.latencyMs > 0) top.addView(text(formatLatency(log.latencyMs), 12, MUTED, Typeface.BOLD)); TextView msg = text(log.model + " · " + log.message, 14, TEXT, Typeface.BOLD); msg.setPadding(0, dp(6), 0, 0); row.addView(msg); if (!compact) { TextView meta = text(nonEmpty(log.credential, "未知凭证"), 12, MUTED, Typeface.NORMAL); meta.setPadding(0, dp(4), 0, 0); row.addView(meta); } }
     private void addSegment(String[] labels, int selected, SegmentCallback cb) { LinearLayout segment = horizontal(); segment.setPadding(dp(3), dp(3), dp(3), dp(3)); segment.setBackground(round(Color.rgb(232, 236, 244), 8)); content.addView(segment, matchWrapWithBottom(dp(12))); for (int i = 0; i < labels.length; i++) { final int index = i; TextView item = text(labels[i], 13, i == selected ? BLUE : MUTED, Typeface.BOLD); item.setGravity(Gravity.CENTER); item.setBackground(round(i == selected ? Color.WHITE : Color.TRANSPARENT, 7)); item.setOnClickListener(v -> cb.onSelect(index)); segment.addView(item, new LinearLayout.LayoutParams(0, dp(40), 1)); } }
     private void addEmptyCard(String value) { LinearLayout c = card(); content.addView(c, matchWrapWithBottom(dp(12))); addEmpty(c, value); }
@@ -3017,13 +2997,14 @@ public class MainActivity extends Activity {
     private int dp(int value) { return (int) (value * getResources().getDisplayMetrics().density + 0.5f); }
     private void hideKeyboard(View view) { try { ((InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(view.getWindowToken(), 0); } catch (Exception ignored) {} }
     private void toast(String value) { Toast.makeText(this, value, Toast.LENGTH_SHORT).show(); }
-    private boolean isNetworkLikelyAvailable() { try { ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE); NetworkInfo info = cm == null ? null : cm.getActiveNetworkInfo(); return info != null && info.isConnected(); } catch (Exception e) { return true; } }
-    private String normalizeBaseUrl(String raw) { String value = raw == null ? "" : raw.trim(); if (value.length() == 0) value = DEFAULT_BASE_URL; if (value.endsWith("/management.html")) value = value.substring(0, value.length() - "/management.html".length()); int hash = value.indexOf('#'); if (hash >= 0) value = value.substring(0, hash); if (!value.startsWith("http://") && !value.startsWith("https://")) value = "http://" + value; while (value.endsWith("/")) value = value.substring(0, value.length() - 1); return value; }
-    private String normalizeQuotaUrl(String raw) { String value = raw == null ? "" : raw.trim(); if (value.length() == 0) return DEFAULT_QUOTA_URL; if (!value.startsWith("http://") && !value.startsWith("https://")) value = "https://" + value; value = stripUrlHashAndQuery(value); int apiIndex = value.indexOf("/v0/management"); if (apiIndex >= 0) value = value.substring(0, apiIndex); int pageIndex = value.indexOf("/management.html"); if (pageIndex >= 0) value = value.substring(0, pageIndex); while (value.endsWith("/")) value = value.substring(0, value.length() - 1); return value + "/management.html#/quota"; }
-    private String stripUrlHashAndQuery(String value) { int hash = value.indexOf('#'); if (hash >= 0) value = value.substring(0, hash); int query = value.indexOf('?'); if (query >= 0) value = value.substring(0, query); return value; }
+    private boolean isNetworkLikelyAvailable() { try { ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE); Network network = cm == null ? null : cm.getActiveNetwork(); NetworkCapabilities capabilities = network == null ? null : cm.getNetworkCapabilities(network); return capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET); } catch (Exception e) { return true; } }
+    private String normalizeBaseUrl(String raw) { return UrlUtils.normalizeBaseUrl(raw, DEFAULT_BASE_URL); }
+    private String normalizeQuotaUrl(String raw) { return UrlUtils.normalizeQuotaUrl(raw, DEFAULT_QUOTA_URL); }
+    private String stripUrlHashAndQuery(String value) { return UrlUtils.stripUrlHashAndQuery(value); }
     private String currentQuotaUrl() { String value = quotaUrl == null ? "" : quotaUrl.trim(); if (prefs != null) { String saved = prefs.getString(KEY_QUOTA_URL, value.length() == 0 ? DEFAULT_QUOTA_URL : value); if (saved != null && saved.trim().length() > 0) value = saved.trim(); } value = correctedQuotaUrl(value); quotaUrl = value; return value; }
     private String currentManagementKey() { String value = managementKey == null ? "" : managementKey.trim(); if (value.length() == 0) value = readSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY); managementKey = value == null ? "" : value.trim(); return managementKey; }
     private String currentManagementApiBase() { return managementApiBaseFromUrl(currentQuotaUrl()); }
+    private void migrateSeparatedCredentials() { if (prefs.getBoolean(KEY_CREDENTIALS_SEPARATED, false)) return; if (managementKey.length() > 0 && managementKey.equals(loginPassword)) { managementKey = ""; clearSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY); } prefs.edit().putBoolean(KEY_CREDENTIALS_SEPARATED, true).apply(); }
     private String readSecret(String encryptedKey, String legacyPlainKey) { return secureStore == null ? "" : secureStore.read(encryptedKey, legacyPlainKey); }
     private boolean saveSecret(String encryptedKey, String legacyPlainKey, String value) { return secureStore != null && secureStore.write(encryptedKey, legacyPlainKey, value); }
     private void clearSecret(String encryptedKey, String legacyPlainKey) { if (secureStore != null) secureStore.remove(encryptedKey, legacyPlainKey); }
@@ -3098,6 +3079,8 @@ public class MainActivity extends Activity {
         private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path linePath = new Path();
+        private final Path fillPath = new Path();
 
         LineChartView(Context context, List<TrendPoint> points, boolean percentUnit) {
             super(context);
@@ -3133,25 +3116,25 @@ public class MainActivity extends Activity {
                 float y = top + (bottom - top) * i / 3f;
                 canvas.drawLine(left, y, right, y, gridPaint);
             }
-            Path line = new Path();
-            Path fill = new Path();
+            linePath.reset();
+            fillPath.reset();
             for (int i = 0; i < points.size(); i++) {
                 float x = points.size() == 1 ? (left + right) / 2f : left + (right - left) * i / (float) (points.size() - 1);
                 float y = (float) (bottom - (points.get(i).value / max) * (bottom - top));
                 if (i == 0) {
-                    line.moveTo(x, y);
-                    fill.moveTo(x, bottom);
-                    fill.lineTo(x, y);
+                    linePath.moveTo(x, y);
+                    fillPath.moveTo(x, bottom);
+                    fillPath.lineTo(x, y);
                 } else {
-                    line.lineTo(x, y);
-                    fill.lineTo(x, y);
+                    linePath.lineTo(x, y);
+                    fillPath.lineTo(x, y);
                 }
                 if (i == points.size() - 1 || i == 0 || points.size() <= 8) canvas.drawCircle(x, y, dp(2), dotPaint);
             }
-            fill.lineTo(right, bottom);
-            fill.close();
-            canvas.drawPath(fill, fillPaint);
-            canvas.drawPath(line, linePaint);
+            fillPath.lineTo(right, bottom);
+            fillPath.close();
+            canvas.drawPath(fillPath, fillPaint);
+            canvas.drawPath(linePath, linePaint);
             String maxLabel = percentUnit ? oneDecimal.format(max) + "%" : max >= 10000d ? formatCount(Math.round(max)) : twoDecimal.format(max);
             canvas.drawText(maxLabel, left, dp(10), textPaint);
         }
@@ -3209,10 +3192,16 @@ public class MainActivity extends Activity {
             int index = col * rows + row;
             if (index < 0 || index >= cells.size()) return true;
             HealthCell cell = cells.get(index);
+            performClick();
             String start = new SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(new Date(cell.startMs));
             String end = new SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(new Date(cell.endMs));
             String message = start + " - " + end + "\n" + (cell.total <= 0 ? "暂无请求" : "请求 " + cell.total + "，失败 " + cell.failed + "，成功率 " + percent(cell.successRate()));
             Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+            return true;
+        }
+
+        @Override public boolean performClick() {
+            super.performClick();
             return true;
         }
 
