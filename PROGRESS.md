@@ -14,6 +14,9 @@
 
 ### Latest Fixes
 
+- Replaced the repeated per-model price cards with one compact price editor driven by a model dropdown.
+- Added a cost model filter so the cost trend and estimated cost can switch between all models and one selected model.
+- Added tested shared cost calculation/filter helpers and updated the app to version `0.2.0` (`versionCode 3`).
 - Separated the CPA Usage Keeper login password from the CLI Proxy API management key; logging in no longer copies or overwrites the management key.
 - Added a one-time upgrade migration that clears a management key when it matches the old automatically copied login password.
 - Changed the management key field to a masked password input and added a real logout action that clears both encrypted credentials.
@@ -45,7 +48,7 @@
   - Result: no matches.
 - Ran from `cpa-android`:
   - `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon`
-  - Result: `BUILD SUCCESSFUL`; 7 unit tests passed; Android Lint reported no issues.
+  - Result: `BUILD SUCCESSFUL`; 10 unit tests passed; Android Lint reported no issues.
 - Ran APK privacy scan after copying the APK to a `.zip` and extracting it under `out/cpa-android-apk-scan`:
   - `rg -n -a -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
   - Result: no matches.
@@ -54,7 +57,7 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Current source version: `0.1.1` (`versionCode 2`)
+- Current source version: `0.2.0` (`versionCode 3`)
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
 - Public APK release: `apk-20260709-public`

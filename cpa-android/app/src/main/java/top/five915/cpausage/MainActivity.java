@@ -150,6 +150,8 @@ public class MainActivity extends Activity {
     private int logTab = 0;
     private boolean errorsOnly = false;
     private String selectedModelFilter = "";
+    private String selectedCostModelFilter = "";
+    private String selectedPriceModel = "";
 
     private LinearLayout root;
     private LinearLayout header;
@@ -1567,14 +1569,18 @@ public class MainActivity extends Activity {
     }
 
     private void renderStats() {
+        List<String> usageModels = sortedUsageModels();
+        if (selectedCostModelFilter.length() > 0 && !usageModels.contains(selectedCostModelFilter)) selectedCostModelFilter = "";
         addSectionTitle("成本", "当前范围：" + rangeLabel(selectedRange));
+        renderCostModelFilter(usageModels);
+        String costScope = selectedCostModelFilter.length() == 0 ? "全部模型" : selectedCostModelFilter;
         LinearLayout trend = card();
         content.addView(trend, matchWrapWithBottom(dp(12)));
-        trend.addView(text("成本趋势", 16, TEXT, Typeface.BOLD));
-        addLineChart(trend, "成本", costTrendPoints(viewSnapshot), "$", false);
+        trend.addView(text("成本趋势 · " + costScope, 16, TEXT, Typeface.BOLD));
+        addLineChart(trend, "成本", costTrendPoints(viewSnapshot, selectedCostModelFilter), "$", false);
 
         addMetricGrid(content, new Metric[]{
-                new Metric("成本估算", viewSnapshot.costLabel(), "按手机端价格表实时计算"),
+                new Metric("成本估算", filteredCostLabel(viewSnapshot, selectedCostModelFilter), costScope + " · 按手机端价格表实时计算"),
                 new Metric("Token 总量", formatCount(viewSnapshot.totalTokens), inputOutputLabel(viewSnapshot)),
                 new Metric("请求总量", formatCount(viewSnapshot.totalRequests), "失败 " + formatCount(viewSnapshot.failureCount)),
                 new Metric("成功率", percent(viewSnapshot.successRate()), "成功 " + formatCount(viewSnapshot.successCount))
@@ -1592,69 +1598,129 @@ public class MainActivity extends Activity {
         addProgress(token, "Cached", viewSnapshot.cachedTokens, max);
     }
 
+    private void renderCostModelFilter(List<String> models) {
+        LinearLayout card = card();
+        content.addView(card, matchWrapWithBottom(dp(12)));
+        card.addView(text("成本统计模型", 16, TEXT, Typeface.BOLD));
+        addMuted(card, "选择“全部模型”查看总费用，或选择单个模型查看该模型的成本趋势与费用。");
+        List<String> labels = new ArrayList<>();
+        labels.add("全部模型");
+        labels.addAll(models);
+        Spinner spinner = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        int selectedIndex = selectedCostModelFilter.length() == 0 ? 0 : Math.max(0, labels.indexOf(selectedCostModelFilter));
+        final boolean[] initialized = new boolean[]{false};
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (!initialized[0]) { initialized[0] = true; return; }
+                String next = position <= 0 ? "" : labels.get(position);
+                if (next.equals(selectedCostModelFilter)) return;
+                selectedCostModelFilter = next;
+                render();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        spinner.setSelection(selectedIndex, false);
+        spinner.post(() -> initialized[0] = true);
+        LinearLayout.LayoutParams spinnerLp = new LinearLayout.LayoutParams(-1, dp(48));
+        spinnerLp.setMargins(0, dp(10), 0, 0);
+        card.addView(spinner, spinnerLp);
+    }
+
     private void renderPriceEditor() {
         LinearLayout card = card();
         content.addView(card, matchWrapWithBottom(dp(12)));
         card.addView(text("价格配置", 16, TEXT, Typeface.BOLD));
         addMuted(card, "单位：美元 / 1M token。启动或刷新时会读取网页端 /api/v1/pricing；手机端修改后本地保存并立即重算成本。 ");
 
-        List<String> models = new ArrayList<>();
-        for (String model : viewSnapshot.models.keySet()) if (!models.contains(model)) models.add(model);
-        for (String model : priceTable.keySet()) if (!models.contains(model)) models.add(model);
-        Collections.sort(models);
+        List<String> models = sortedPriceModels();
         if (models.isEmpty()) {
             addEmpty(card, "暂无模型或价格数据");
             return;
         }
+        if (!models.contains(selectedPriceModel)) selectedPriceModel = models.get(0);
 
-        int count = 0;
-        for (String model : models) {
-            PriceRule existing = priceForModel(model);
-            PriceRule rule = existing == null ? new PriceRule() : existing.copyFor(model);
-            rule.model = model;
-            LinearLayout item = card();
-            LinearLayout.LayoutParams itemLp = matchWrapWithBottom(dp(10));
-            itemLp.setMargins(0, dp(10), 0, 0);
-            card.addView(item, itemLp);
-            item.addView(text(model, 14, TEXT, Typeface.BOLD));
-            addKeyValue(item, "当前范围成本", modelCostLabel(model));
-
-            LinearLayout row = horizontal();
-            row.setPadding(0, dp(8), 0, 0);
-            item.addView(row, new LinearLayout.LayoutParams(-1, dp(48)));
-            EditText input = numberInput(rule.inputPer1m);
-            EditText output = numberInput(rule.outputPer1m);
-            EditText cache = numberInput(rule.cachePer1m);
-            row.addView(input, weightLp(1));
-            LinearLayout.LayoutParams outLp = weightLp(1); outLp.setMargins(dp(6), 0, 0, 0); row.addView(output, outLp);
-            LinearLayout.LayoutParams cacheLp = weightLp(1); cacheLp.setMargins(dp(6), 0, 0, 0); row.addView(cache, cacheLp);
-            addMuted(item, "左到右：输入价 / 输出价 / 缓存价");
-
-            Button save = secondaryButton("保存此模型价格");
-            LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-1, dp(42));
-            saveLp.setMargins(0, dp(8), 0, 0);
-            item.addView(save, saveLp);
-            save.setOnClickListener(v -> {
-                PriceRule updated = new PriceRule();
-                updated.model = model;
-                updated.inputPer1m = parseDouble(input.getText().toString());
-                updated.outputPer1m = parseDouble(output.getText().toString());
-                updated.cachePer1m = parseDouble(cache.getText().toString());
-                priceTable.put(model, updated);
-                saveLocalPrices();
-                applyCost(allSnapshot);
-                viewSnapshot = applyRange(allSnapshot, selectedRange);
-                applyCost(viewSnapshot);
-                toast("已保存价格并重算成本");
+        Spinner spinner = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, models);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        int selectedIndex = Math.max(0, models.indexOf(selectedPriceModel));
+        final boolean[] initialized = new boolean[]{false};
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (!initialized[0]) { initialized[0] = true; return; }
+                String next = models.get(position);
+                if (next.equals(selectedPriceModel)) return;
+                selectedPriceModel = next;
                 render();
-            });
-
-            count++;
-            if (count >= 30) {
-                addMuted(card, "仅显示前 30 个模型，更多模型可后续加搜索。 ");
-                break;
             }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        spinner.setSelection(selectedIndex, false);
+        spinner.post(() -> initialized[0] = true);
+        LinearLayout.LayoutParams spinnerLp = new LinearLayout.LayoutParams(-1, dp(48));
+        spinnerLp.setMargins(0, dp(10), 0, 0);
+        card.addView(spinner, spinnerLp);
+
+        String model = selectedPriceModel;
+        PriceRule existing = priceForModel(model);
+        PriceRule rule = existing == null ? new PriceRule() : existing.copyFor(model);
+        rule.model = model;
+        addKeyValue(card, "当前范围成本", modelCostLabel(model));
+
+        LinearLayout row = horizontal();
+        row.setPadding(0, dp(8), 0, 0);
+        card.addView(row, new LinearLayout.LayoutParams(-1, dp(48)));
+        EditText input = numberInput(rule.inputPer1m);
+        EditText output = numberInput(rule.outputPer1m);
+        EditText cache = numberInput(rule.cachePer1m);
+        row.addView(input, weightLp(1));
+        LinearLayout.LayoutParams outLp = weightLp(1); outLp.setMargins(dp(6), 0, 0, 0); row.addView(output, outLp);
+        LinearLayout.LayoutParams cacheLp = weightLp(1); cacheLp.setMargins(dp(6), 0, 0, 0); row.addView(cache, cacheLp);
+        addMuted(card, "左到右：输入价 / 输出价 / 缓存价");
+
+        Button save = secondaryButton("保存当前模型价格");
+        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-1, dp(42));
+        saveLp.setMargins(0, dp(8), 0, 0);
+        card.addView(save, saveLp);
+        save.setOnClickListener(v -> {
+            PriceRule updated = new PriceRule();
+            updated.model = model;
+            updated.inputPer1m = parseDouble(input.getText().toString());
+            updated.outputPer1m = parseDouble(output.getText().toString());
+            updated.cachePer1m = parseDouble(cache.getText().toString());
+            priceTable.put(model, updated);
+            saveLocalPrices();
+            applyCost(allSnapshot);
+            viewSnapshot = applyRange(allSnapshot, selectedRange);
+            applyCost(viewSnapshot);
+            toast("已保存 " + model + " 的价格并重算成本");
+            render();
+        });
+    }
+
+    private List<String> sortedUsageModels() {
+        List<String> models = new ArrayList<>(viewSnapshot.models.keySet());
+        Collections.sort(models);
+        return models;
+    }
+
+    private List<String> sortedPriceModels() {
+        List<String> models = sortedUsageModels();
+        for (String model : priceTable.keySet()) if (!models.contains(model)) models.add(model);
+        Collections.sort(models);
+        return models;
+    }
+
+    private String filteredCostLabel(DataSnapshot snapshot, String model) {
+        double cost = snapshot.estimatedCost;
+        if (model != null && model.length() > 0) {
+            ModelSummary summary = snapshot.models.get(model);
+            cost = summary == null ? 0d : summary.estimatedCost;
         }
+        return cost <= 0d ? "待配置" : "$" + twoDecimal.format(cost);
     }
 
     private String modelCostLabel(String model) {
@@ -1858,9 +1924,8 @@ public class MainActivity extends Activity {
         for (ModelSummary model : snapshot.models.values()) {
             PriceRule rule = priceForModel(model.name);
             if (rule == null) continue;
-            double cost = model.inputTokens / 1_000_000d * rule.inputPer1m
-                    + model.outputTokens / 1_000_000d * rule.outputPer1m
-                    + model.cachedTokens / 1_000_000d * rule.cachePer1m;
+            double cost = CostUtils.calculate(model.inputTokens, model.outputTokens, model.cachedTokens,
+                    rule.inputPer1m, rule.outputPer1m, rule.cachePer1m);
             model.estimatedCost = cost;
             total += cost;
         }
@@ -2802,12 +2867,13 @@ public class MainActivity extends Activity {
         return out;
     }
 
-    private List<TrendPoint> costTrendPoints(DataSnapshot snapshot) {
+    private List<TrendPoint> costTrendPoints(DataSnapshot snapshot, String model) {
         Map<Long, Double> buckets = new HashMap<>();
         long[] bounds = trendBounds(snapshot);
         long bucketMs = trendBucketMillis(bounds[0], bounds[1]);
         for (UsageEvent e : snapshot.events) {
             if (e.epochMs <= 0) continue;
+            if (!CostUtils.includesModel(model, e.model)) continue;
             long key = bucketKey(e.epochMs, bounds[0], bucketMs);
             Double old = buckets.get(key);
             buckets.put(key, (old == null ? 0d : old) + eventCost(e));
@@ -2896,9 +2962,8 @@ public class MainActivity extends Activity {
     private double eventCost(UsageEvent e) {
         PriceRule rule = priceForModel(e.model);
         if (rule == null) return 0d;
-        return e.inputTokens / 1_000_000d * rule.inputPer1m
-                + e.outputTokens / 1_000_000d * rule.outputPer1m
-                + e.cachedTokens / 1_000_000d * rule.cachePer1m;
+        return CostUtils.calculate(e.inputTokens, e.outputTokens, e.cachedTokens,
+                rule.inputPer1m, rule.outputPer1m, rule.cachePer1m);
     }
 
     private void addLineChart(LinearLayout parent, String label, List<TrendPoint> points, String unit, boolean percentUnit) {

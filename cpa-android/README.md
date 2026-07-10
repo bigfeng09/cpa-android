@@ -11,8 +11,8 @@
 - 全局统计范围改为简洁下拉菜单：`4h`、`8h`、`24h`、`7天`、`30天`、`全部`、`自定义`。
 - 自定义范围使用原生日期选择器选择开始/结束日期，按开始日期 00:00 到结束日期次日 00:00 过滤。
 - 首页：按当前范围展示服务在线状态、会话状态、请求数、成功率、Token、平均耗时和请求健康时间线。
-- 统计页：按当前范围展示成本趋势、成本估算、Token 拆分和价格配置。
-- 价格配置：自动读取网页端 `GET /api/v1/pricing`；手机端可编辑每个模型的输入/输出/缓存价格并本地保存，保存后立即重算当前范围成本。
+- 统计页：按当前范围展示成本趋势、成本估算、Token 拆分和价格配置；成本可在“全部模型”和任一单个模型之间筛选。
+- 价格配置：自动读取网页端 `GET /api/v1/pricing`；手机端通过模型下拉框共用一套输入/输出/缓存价格输入区，保存后立即重算当前范围成本。
 - 模型页：按当前范围展示模型请求量、成功率、Token、输入/输出、平均耗时、最近使用时间。
 - 凭证页：按当前范围展示脱敏 Key、请求数、成功率、Token、失败数、健康状态估算。
 - 日志页：按当前范围展示最近事件、仅错误筛选。
@@ -94,7 +94,7 @@ cpa-android/app/build/outputs/apk/debug/app-debug.apk
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon
 ```
 
-结果：`BUILD SUCCESSFUL`；URL 归一化单元测试 `7/7` 通过，Android Lint `0` 项。
+结果：`BUILD SUCCESSFUL`；单元测试 `10/10` 通过，Android Lint `0` 项。
 
 最近一次验证：2026-07-10，APK 路径仍为 `app/build/outputs/apk/debug/app-debug.apk`。
 
