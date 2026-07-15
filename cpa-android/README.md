@@ -19,9 +19,9 @@
 - `CLI Proxy API` 配置不在登录页填写，而是在进入 App 后到 `设置` 页面填写。
 - 账号页：已改为纯原生 Android 页面，不再使用 WebView 嵌套。默认账号页地址使用占位示例 `https://your-domain.example/management.html#/quota`，可以在设置页自行修改。
 - 在 `设置` 页面填写 `CLI Proxy API` 链接和 `管理 Key` 后，进入 `账号` 页面点击刷新，App 会调用对应的 `/v0/management/auth-files` 和 `/v0/management/api-call` 读取 OAuth 配额；App 顶部刷新按钮也会触发原生刷新。
-- 账号页只展示已启用的 Codex 账号；接口返回停用、禁用、暂停或删除状态的账号会被隐藏，并且不会执行额度刷新。
+- 账号页展示全部 Codex 认证文件；每张账号卡片可直接开启或关闭认证文件，停用账号会保留在列表中，但不会执行额度刷新。
 - 账号页现在按 Codex 账号分卡片展示：账号/文件名、套餐、续期时间、主动重置次数、5 小时限额、周/月限额、Code Review 限额、附加限额、重置次数有效期、错误信息。
-- 每个 Codex 账号卡片都有独立的 `刷新额度` 和 `重置额度` 按钮；顶部有 `刷新全部凭证`。重置额度会调用 Codex WHAM reset consume 接口，随后自动重新刷新该账号。
+- 每个 Codex 账号卡片都有独立的 `开启/关闭认证文件`、`刷新额度` 和 `重置额度` 按钮；顶部有 `刷新全部凭证`。认证文件启停会调用管理接口，重置额度会调用 Codex WHAM reset consume 接口并随后自动刷新。
 - 设置页：修改统计服务地址、账号页地址和 Management Key。Management Key 使用密码输入框隐藏，退出会清除两套本地凭据。
 - 网络：允许局域网 HTTP 明文访问，同时可访问 HTTPS 反代管理页。
 - 图标：已切换为原生 Android adaptive icon，使用仓库内矢量资源生成，不依赖外部素材。
@@ -51,6 +51,7 @@
 配额原生刷新使用管理中心接口：
 
 - `GET /v0/management/auth-files`
+- `PATCH /v0/management/auth-files/status`
 - `POST /v0/management/api-call`
 
 这些管理接口需要 Header：`Authorization: Bearer <管理 Key>`。
@@ -65,7 +66,7 @@ App 会按网页端字段解析 `rate_limit.primary_window`、`rate_limit.second
 
 续期时间会优先按网页端字段解析 `chatgpt_subscription_active_until` / `chatgptSubscriptionActiveUntil` / `subscription_active_until` / `subscriptionActiveUntil`，并兼容 `active_until`、`billing_period_end`、`renewal_at`、`expires_at`、`expires`、`expiry` 等字段。显示格式使用网页端同类样式，例如 `2026/8/8 09:08:43`。
 
-管理中心 `/api-call` 响应已兼容网页端的 `status_code` 字段，同时也兼容 `statusCode` / `status`。Codex 用量的 `used_percent` 如果返回 `0..1` 小数，App 会自动换算成 `0..100%` 进度。
+管理中心 `/api-call` 响应已兼容网页端的 `status_code` 字段，同时也兼容 `statusCode` / `status`。Codex 用量的 `used_percent` 始终按上游定义的百分数处理，例如 `1` 表示已用 1%、剩余 99%，不会再误判为已用 100%。额度读取会在失败时自动重试一次；上游返回空数据、未知结构或临时错误时，App 会保留上一次有效额度并显示失败原因。
 
 当前 `/api/v1/usage` 返回体较大，App 首次刷新会等待该接口完成。后续建议后端增加分页/聚合接口，减少移动端解析压力。
 
@@ -94,9 +95,9 @@ cpa-android/app/build/outputs/apk/debug/app-debug.apk
 .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon
 ```
 
-结果：`BUILD SUCCESSFUL`；单元测试 `10/10` 通过，Android Lint `0` 项。
+结果：`BUILD SUCCESSFUL`；单元测试 `13/13` 通过，Android Lint `0` 项。
 
-最近一次验证：2026-07-10，APK 路径仍为 `app/build/outputs/apk/debug/app-debug.apk`。
+最近一次验证：2026-07-15，APK 路径仍为 `app/build/outputs/apk/debug/app-debug.apk`。
 
 ## 后续建议
 

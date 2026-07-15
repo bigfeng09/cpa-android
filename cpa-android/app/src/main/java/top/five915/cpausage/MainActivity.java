@@ -604,7 +604,7 @@ public class MainActivity extends Activity {
             LinearLayout empty = card();
             box.addView(empty, matchWrapWithBottom(dp(10)));
             empty.addView(text("还没有账号数据", 15, TEXT, Typeface.BOLD));
-            addMuted(empty, "点击“刷新全部凭证”后，会读取 /v0/management/auth-files，只展示已启用账号，并按账号显示 5 小时限额、周限额、重置次数和到期时间。 ");
+            addMuted(empty, "点击“刷新全部凭证”后，会读取 /v0/management/auth-files，展示全部 Codex 认证文件，并按账号显示启停状态和额度。 ");
         } else {
             for (CodexQuotaAccount account : codexQuotaAccounts) addQuotaAccountCard(box, account);
         }
@@ -615,7 +615,10 @@ public class MainActivity extends Activity {
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         actionsCard.addView(titleRow);
         titleRow.addView(text("账号操作", 18, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1));
-        titleRow.addView(pill(codexQuotaAccounts.size() + " 个启用账号", BLUE, SOFT_BLUE));
+        int enabledAccounts = 0;
+        for (CodexQuotaAccount account : codexQuotaAccounts) if (account.enabled) enabledAccounts++;
+        int disabledAccounts = codexQuotaAccounts.size() - enabledAccounts;
+        titleRow.addView(pill(enabledAccounts + " 已启用 · " + disabledAccounts + " 已停用", BLUE, SOFT_BLUE));
         addKeyValue(actionsCard, "刷新状态", quotaLoading ? "正在刷新..." : quotaStatus);
         addKeyValue(actionsCard, "刷新结果", cleanText(quotaDetail, 120));
 
@@ -798,7 +801,7 @@ public class MainActivity extends Activity {
         quotaLoading = true;
         quotaStatus = "正在刷新";
         quotaDetail = "正在读取 /v0/management/auth-files...";
-        codexQuotaAccounts.clear();
+        List<CodexQuotaAccount> previousAccounts = new ArrayList<>(codexQuotaAccounts);
         render();
         executor.execute(() -> {
             String resultStatus = "刷新失败";
@@ -821,6 +824,7 @@ public class MainActivity extends Activity {
                 JSONArray files = extractArray(authFilesBody);
                 int total = files.length();
                 int codex = 0;
+                int enabled = 0;
                 int disabled = 0;
                 int success = 0;
                 for (int i = 0; i < files.length(); i++) {
@@ -829,85 +833,30 @@ public class MainActivity extends Activity {
                     String name = file.optString("name", "");
                     String type = detectAuthType(file, name);
                     if (!"codex".equals(type)) continue;
-                    if (!isQuotaAccountEnabled(file)) {
-                        disabled++;
-                        continue;
-                    }
                     CodexQuotaAccount account = quotaAccountFromFile(file);
-                    if (account.authIndex.length() == 0) continue;
+                    if (account.statusName.length() == 0 && account.authIndex.length() == 0) continue;
+                    account.managementApiBase = apiBase;
+                    carryForwardQuotaState(account, findMatchingQuotaAccount(previousAccounts, account));
                     codex++;
-                    if (refreshCodexQuotaInWorker(apiBase, account)) success++;
+                    if (account.enabled) {
+                        enabled++;
+                        if (account.authIndex.length() == 0) {
+                            account.error = "认证文件缺少 auth_index，无法刷新额度。";
+                        } else if (refreshCodexQuotaInWorker(apiBase, account)) {
+                            success++;
+                        }
+                    } else {
+                        disabled++;
+                    }
                     accounts.add(account);
                 }
                 resultStatus = "刷新完成";
-                String hidden = disabled > 0 ? "。已隐藏停用账号：" + disabled : "";
                 resultDetail = codex == 0
-                        ? "未发现已启用且带 auth_index 的 Codex OAuth 凭证。auth-files 总数：" + total + hidden + "。已使用：" + apiBase
-                        : "已启用 Codex " + success + "/" + codex + " 个账号刷新成功。auth-files 总数：" + total + hidden + "。已使用：" + apiBase;
+                        ? "未发现 Codex OAuth 认证文件。auth-files 总数：" + total + "。已使用：" + apiBase
+                        : "Codex 认证文件 " + codex + " 个：启用 " + enabled + "，停用 " + disabled + "；额度刷新成功 " + success + "/" + enabled + "。已使用：" + apiBase;
             } catch (Exception e) {
                 resultDetail = cleanError(e);
-            }
-            String finalStatus = resultStatus;
-            String finalDetail = resultDetail;
-            mainHandler.post(() -> {
-                quotaLoading = false;
-                quotaStatus = finalStatus;
-                quotaDetail = finalDetail;
-                codexQuotaAccounts.clear();
-                codexQuotaAccounts.addAll(accounts);
-                render();
-            });
-        });
-    }
-
-    private void refreshQuotaNative() {
-        if (quotaLoading) return;
-        if (currentManagementKey().length() == 0) {
-            quotaStatus = "缺少管理 Key";
-            quotaDetail = "请输入管理 Key 后再刷新。网页端如果能登录，使用同一个 Key。";
-            render();
-            return;
-        }
-        quotaLoading = true;
-        quotaStatus = "正在刷新";
-        quotaDetail = "正在读取 /v0/management/auth-files...";
-        codexQuotaAccounts.clear();
-        render();
-        executor.execute(() -> {
-            String resultStatus = "刷新失败";
-            String resultDetail;
-            List<CodexQuotaAccount> accounts = new ArrayList<>();
-            try {
-                String apiBase = managementApiBase();
-                String authFilesBody = request("GET", apiBase + "/auth-files", null, managementHeaders(), 10000, 20000);
-                JSONArray files = extractArray(authFilesBody);
-                int total = files.length();
-                int codex = 0;
-                int disabled = 0;
-                int success = 0;
-                for (int i = 0; i < files.length(); i++) {
-                    JSONObject file = files.optJSONObject(i);
-                    if (file == null) continue;
-                    String name = file.optString("name", "");
-                    String type = detectAuthType(file, name);
-                    if (!"codex".equals(type)) continue;
-                    if (!isQuotaAccountEnabled(file)) {
-                        disabled++;
-                        continue;
-                    }
-                    CodexQuotaAccount account = quotaAccountFromFile(file);
-                    if (account.authIndex.length() == 0) continue;
-                    codex++;
-                    if (refreshCodexQuotaInWorker(apiBase, account)) success++;
-                    accounts.add(account);
-                }
-                resultStatus = "刷新完成";
-                String hidden = disabled > 0 ? "。已隐藏停用账号：" + disabled : "";
-                resultDetail = codex == 0
-                        ? "未发现已启用且带 auth_index 的 Codex OAuth 凭证。auth-files 总数：" + total + hidden
-                        : "已启用 Codex " + success + "/" + codex + " 个账号刷新成功。auth-files 总数：" + total + hidden;
-            } catch (Exception e) {
-                resultDetail = cleanError(e);
+                accounts.addAll(previousAccounts);
             }
             String finalStatus = resultStatus;
             String finalDetail = resultDetail;
@@ -1403,7 +1352,10 @@ public class MainActivity extends Activity {
         TextView sub = text(account.authIndex.length() == 0 ? "Codex OAuth" : "账号 " + maskIdentifier(account.authIndex), 12, MUTED, Typeface.NORMAL);
         sub.setPadding(0, dp(3), 0, 0);
         title.addView(sub);
-        top.addView(pill(account.loading ? "刷新中" : account.resetting ? "重置中" : account.error.length() > 0 ? "异常" : "Codex", account.error.length() > 0 ? RED : BLUE, account.error.length() > 0 ? SOFT_RED : SOFT_BLUE));
+        String accountStatus = account.statusUpdating ? "处理中" : !account.enabled ? "已停用" : account.loading ? "刷新中" : account.resetting ? "重置中" : account.error.length() > 0 ? "异常" : "已启用";
+        int accountStatusColor = !account.enabled ? MUTED : account.error.length() > 0 ? RED : BLUE;
+        int accountStatusBackground = !account.enabled ? Color.rgb(239, 242, 247) : account.error.length() > 0 ? SOFT_RED : SOFT_BLUE;
+        top.addView(pill(accountStatus, accountStatusColor, accountStatusBackground));
 
         addKeyValue(card, "套餐", nonEmpty(displayPlan(account.planType), "未知"));
         addKeyValue(card, "续期时间", nonEmpty(formatSubscriptionTime(account.subscriptionActiveUntil), "未知"));
@@ -1418,7 +1370,9 @@ public class MainActivity extends Activity {
         if (account.error.length() > 0) addQuotaMessage(card, account.error, RED, SOFT_RED);
         if (account.lastActionMessage.length() > 0) addQuotaMessage(card, account.lastActionMessage, GREEN, SOFT_GREEN);
 
-        if (account.windows.isEmpty()) {
+        if (!account.enabled) {
+            addQuotaMessage(card, "该认证文件已停用，不会参与代理请求和额度刷新。", MUTED, Color.rgb(239, 242, 247));
+        } else if (account.windows.isEmpty()) {
             TextView empty = text(nonEmpty(account.rawSummary, "未返回可解析的额度窗口"), 12, MUTED, Typeface.NORMAL);
             empty.setPadding(0, dp(10), 0, 0);
             card.addView(empty);
@@ -1426,12 +1380,19 @@ public class MainActivity extends Activity {
             for (QuotaWindow window : account.windows) addQuotaWindow(card, window);
         }
 
+        Button toggle = secondaryButton(account.enabled ? "关闭认证文件" : "开启认证文件");
+        LinearLayout.LayoutParams toggleLp = new LinearLayout.LayoutParams(-1, dp(46));
+        toggleLp.setMargins(0, dp(12), 0, 0);
+        card.addView(toggle, toggleLp);
+        toggle.setEnabled(!quotaLoading && !account.loading && !account.resetting && !account.statusUpdating && account.statusName.length() > 0);
+        toggle.setOnClickListener(v -> setAuthFileEnabled(account, !account.enabled));
+
         LinearLayout actions = horizontal();
         actions.setPadding(0, dp(12), 0, 0);
         card.addView(actions, new LinearLayout.LayoutParams(-1, dp(48)));
         Button reset = secondaryButton("重置额度");
         actions.addView(reset, weightLp(1));
-        reset.setEnabled(!quotaLoading && !account.loading && !account.resetting);
+        reset.setEnabled(account.enabled && !quotaLoading && !account.loading && !account.resetting && !account.statusUpdating && account.authIndex.length() > 0);
         reset.setOnClickListener(v -> {
             resetCodexQuota(account.authIndex);
         });
@@ -1439,7 +1400,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams refreshLp = weightLp(1);
         refreshLp.setMargins(dp(10), 0, 0, 0);
         actions.addView(refresh, refreshLp);
-        refresh.setEnabled(!quotaLoading && !account.loading && !account.resetting);
+        refresh.setEnabled(account.enabled && !quotaLoading && !account.loading && !account.resetting && !account.statusUpdating && account.authIndex.length() > 0);
         refresh.setOnClickListener(v -> {
             refreshCodexQuota(account.authIndex);
         });
@@ -2089,7 +2050,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(connectTimeoutMs);
         conn.setReadTimeout(readTimeoutMs);
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.2");
+        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3");
         if (loginPassword != null && loginPassword.trim().length() > 0) conn.setRequestProperty("Authorization", "Bearer " + loginPassword.trim());
         int code = conn.getResponseCode();
         InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
@@ -2181,8 +2142,10 @@ public class MainActivity extends Activity {
             if (arr != null) return arr;
             arr = obj.optJSONArray("authFiles");
             if (arr != null) return arr;
+            arr = obj.optJSONArray("auth_files");
+            if (arr != null) return arr;
         }
-        return new JSONArray();
+        throw new JSONException("认证文件接口未返回可识别的列表");
     }
 
     private String detectAuthType(JSONObject file, String name) {
@@ -2243,6 +2206,14 @@ public class MainActivity extends Activity {
         CodexQuotaAccount account = new CodexQuotaAccount();
         account.rawFile = file;
         account.authIndex = firstNonEmpty(file.optString("auth_index", ""), file.optString("authIndex", ""));
+        account.statusName = firstNonEmpty(
+                file.optString("id", ""),
+                file.optString("name", ""),
+                file.optString("filename", ""),
+                fileNameOnly(file.optString("file", "")),
+                fileNameOnly(file.optString("path", ""))
+        );
+        account.enabled = isQuotaAccountEnabled(file);
         account.name = firstNonEmpty(
                 file.optString("name", ""),
                 file.optString("display_name", ""),
@@ -2256,6 +2227,56 @@ public class MainActivity extends Activity {
         account.subscriptionActiveUntil = extractSubscriptionActiveUntil(file);
         account.name = safeQuotaAccountName(file, account.authIndex);
         return account;
+    }
+
+    private void setAuthFileEnabled(CodexQuotaAccount account, boolean enabled) {
+        if (account == null || account.statusUpdating || quotaLoading) return;
+        if (currentManagementKey().length() == 0) {
+            account.error = "请输入管理 Key 后再修改认证文件状态。";
+            render();
+            return;
+        }
+        if (account.statusName.length() == 0) {
+            account.error = "认证文件缺少可用的名称，无法修改状态。";
+            render();
+            return;
+        }
+        account.statusUpdating = true;
+        account.error = "";
+        account.lastActionMessage = enabled ? "正在开启认证文件..." : "正在关闭认证文件...";
+        render();
+        executor.execute(() -> {
+            String error = "";
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("name", account.statusName);
+                payload.put("disabled", !enabled);
+                String apiBase = nonEmpty(account.managementApiBase, managementApiBase());
+                request("PATCH", apiBase + "/auth-files/status", payload.toString(), managementHeaders(), 10000, 20000);
+            } catch (Exception e) {
+                error = cleanError(e);
+            }
+            String finalError = error;
+            mainHandler.post(() -> {
+                account.statusUpdating = false;
+                if (finalError.length() > 0) {
+                    account.error = "认证文件状态修改失败：" + finalError;
+                    account.lastActionMessage = "";
+                    render();
+                    return;
+                }
+                account.enabled = enabled;
+                try {
+                    account.rawFile.put("disabled", !enabled);
+                    account.rawFile.put("status", enabled ? "active" : "disabled");
+                } catch (Exception ignored) {}
+                account.lastActionMessage = enabled ? "认证文件已开启。" : "认证文件已关闭。";
+                quotaStatus = enabled ? "认证文件已开启" : "认证文件已关闭";
+                quotaDetail = account.name + (enabled ? " 已开启并准备刷新额度。" : " 已关闭，不再刷新额度。 ");
+                render();
+                if (enabled && account.authIndex.length() > 0) refreshCodexQuota(account.authIndex);
+            });
+        });
     }
 
     private void refreshCodexQuota(String authIndex) {
@@ -2327,13 +2348,49 @@ public class MainActivity extends Activity {
         return null;
     }
 
+    private CodexQuotaAccount findMatchingQuotaAccount(List<CodexQuotaAccount> accounts, CodexQuotaAccount target) {
+        if (accounts == null || target == null) return null;
+        for (CodexQuotaAccount account : accounts) {
+            if (target.statusName.length() > 0 && target.statusName.equals(account.statusName)) return account;
+            if (target.authIndex.length() > 0 && target.authIndex.equals(account.authIndex)) return account;
+        }
+        return null;
+    }
+
+    private void carryForwardQuotaState(CodexQuotaAccount target, CodexQuotaAccount previous) {
+        if (target == null || previous == null) return;
+        target.windows.addAll(previous.windows);
+        target.resetCreditsKnown = previous.resetCreditsKnown;
+        target.resetCreditsAvailableCount = previous.resetCreditsAvailableCount;
+        target.resetCreditExpiries.addAll(previous.resetCreditExpiries);
+        target.resetCreditsError = previous.resetCreditsError;
+        target.rawSummary = previous.rawSummary;
+        target.planType = firstNonEmpty(target.planType, previous.planType);
+        target.subscriptionActiveUntil = firstNonEmpty(target.subscriptionActiveUntil, previous.subscriptionActiveUntil);
+    }
+
     private boolean refreshCodexQuotaInWorker(String apiBase, CodexQuotaAccount account) {
+        String lastError = "";
         try {
             account.loading = true;
             account.error = "";
-            account.rawSummary = "";
-            ApiCallResponse usage = apiCall(apiBase, account.authIndex, "GET", "https://chatgpt.com/backend-api/wham/usage", codexHeaders(account.rawFile, false), null, 15000, 45000);
-            parseCodexUsage(account, usage.body);
+            boolean usageLoaded = false;
+            for (int attempt = 0; attempt < 2 && !usageLoaded; attempt++) {
+                try {
+                    ApiCallResponse usage = apiCall(apiBase, account.authIndex, "GET", "https://chatgpt.com/backend-api/wham/usage", codexHeaders(account.rawFile, false), null, 15000, 45000);
+                    CodexQuotaAccount refreshed = quotaAccountFromFile(account.rawFile);
+                    refreshed.managementApiBase = apiBase;
+                    usageLoaded = parseCodexUsage(refreshed, usage.body);
+                    if (usageLoaded) copyQuotaUsage(account, refreshed);
+                    else lastError = refreshed.error;
+                } catch (Exception usageError) {
+                    lastError = cleanError(usageError);
+                }
+            }
+            if (!usageLoaded) {
+                account.error = (account.windows.isEmpty() ? "额度刷新失败：" : "额度刷新失败，已保留上次结果：") + nonEmpty(lastError, "上游未返回有效额度窗口");
+                return false;
+            }
             try {
                 ApiCallResponse reset = apiCall(apiBase, account.authIndex, "GET", "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits", codexHeaders(account.rawFile, true), null, 10000, 25000);
                 parseResetCredits(account, reset.body, "");
@@ -2342,8 +2399,7 @@ public class MainActivity extends Activity {
             }
             return account.error.length() == 0;
         } catch (Exception e) {
-            account.error = cleanError(e);
-            account.windows.clear();
+            account.error = (account.windows.isEmpty() ? "额度刷新失败：" : "额度刷新失败，已保留上次结果：") + cleanError(e);
             return false;
         } finally {
             account.loading = false;
@@ -2381,12 +2437,12 @@ public class MainActivity extends Activity {
         return header;
     }
 
-    private void parseCodexUsage(CodexQuotaAccount account, String body) throws JSONException {
+    private boolean parseCodexUsage(CodexQuotaAccount account, String body) throws JSONException {
         JSONObject obj = asObject(body);
         if (obj == null) {
             account.rawSummary = "Quota API returned a non-JSON response";
             account.error = "额度接口返回空数据";
-            return;
+            return false;
         }
         account.rawSummary = "Quota response loaded without parsed windows";
         account.planType = firstNonEmpty(
@@ -2397,21 +2453,30 @@ public class MainActivity extends Activity {
         account.subscriptionActiveUntil = firstNonEmpty(extractSubscriptionActiveUntil(obj), account.subscriptionActiveUntil);
         JSONObject embeddedReset = optObjectAny(obj, "rate_limit_reset_credits", "rateLimitResetCredits");
         if (embeddedReset != null) parseResetCredits(account, embeddedReset.toString(), "");
-        account.windows.clear();
+        List<QuotaWindow> parsedWindows = new ArrayList<>();
         JSONObject rate = optObjectAny(obj, "rate_limit", "rateLimit");
-        addCodexRateWindows(account.windows, rate, false, "");
+        addCodexRateWindows(parsedWindows, rate, false, "");
         JSONObject review = optObjectAny(obj, "code_review_rate_limit", "codeReviewRateLimit");
-        addCodexRateWindows(account.windows, review, true, "Code Review ");
+        addCodexRateWindows(parsedWindows, review, true, "Code Review ");
         JSONArray additional = optArrayAny(obj, "additional_rate_limits", "additionalRateLimits");
         if (additional != null) {
             for (int i = 0; i < additional.length(); i++) {
                 JSONObject item = additional.optJSONObject(i);
                 if (item == null) continue;
                 String name = firstNonEmpty(item.optString("limit_name", ""), item.optString("limitName", ""), item.optString("metered_feature", ""), item.optString("meteredFeature", ""), "附加额度 " + (i + 1));
-                addCodexRateWindows(account.windows, optObjectAny(item, "rate_limit", "rateLimit"), false, name + " ");
+                addCodexRateWindows(parsedWindows, optObjectAny(item, "rate_limit", "rateLimit"), false, name + " ");
             }
         }
-        if (account.windows.isEmpty()) account.rawSummary = summarizeQuotaJson(body);
+        if (parsedWindows.isEmpty()) {
+            account.rawSummary = summarizeQuotaJson(body);
+            account.error = "额度响应没有可解析的额度窗口";
+            return false;
+        }
+        account.windows.clear();
+        account.windows.addAll(parsedWindows);
+        account.rawSummary = "";
+        account.error = "";
+        return true;
     }
 
     private void addCodexRateWindows(List<QuotaWindow> out, JSONObject rate, boolean codeReview, String prefix) {
@@ -2436,11 +2501,25 @@ public class MainActivity extends Activity {
         window.label = label;
         Double used = optNullableDoubleAny(obj, "used_percent", "usedPercent", "utilization");
         if (used == null && (limitReached || (allowed != null && !allowed))) used = 100d;
-        if (used != null && used > 0d && used <= 1d) used = used * 100d;
-        window.usedPercent = used == null ? -1d : Math.max(0d, Math.min(100d, used));
-        window.remainingPercent = window.usedPercent < 0 ? -1d : Math.max(0d, Math.min(100d, 100d - window.usedPercent));
+        window.usedPercent = QuotaUtils.normalizeUsedPercent(used);
+        window.remainingPercent = QuotaUtils.remainingPercent(used);
         window.resetLabel = resetLabel(obj);
         return window;
+    }
+
+    private void copyQuotaUsage(CodexQuotaAccount target, CodexQuotaAccount source) {
+        target.planType = firstNonEmpty(source.planType, target.planType);
+        target.subscriptionActiveUntil = firstNonEmpty(source.subscriptionActiveUntil, target.subscriptionActiveUntil);
+        target.windows.clear();
+        target.windows.addAll(source.windows);
+        target.rawSummary = source.rawSummary;
+        target.error = source.error;
+        if (source.resetCreditsKnown) {
+            target.resetCreditsKnown = true;
+            target.resetCreditsAvailableCount = source.resetCreditsAvailableCount;
+            target.resetCreditExpiries.clear();
+            target.resetCreditExpiries.addAll(source.resetCreditExpiries);
+        }
     }
 
     private void parseResetCredits(CodexQuotaAccount account, String body, String error) throws JSONException {
@@ -3123,8 +3202,8 @@ public class MainActivity extends Activity {
     private static class ApiKeyItem { String id = "", name = "", value = "", createdAt = ""; int index = -1; }
     private static class ApiCallResponse { final int statusCode; final String body; ApiCallResponse(int statusCode, String body) { this.statusCode = statusCode; this.body = body == null ? "" : body; } }
     private static class CodexQuotaAccount {
-        String name = "Codex 账号", authIndex = "", planType = "", subscriptionActiveUntil = "", chatgptAccountId = "", error = "", resetCreditsError = "", rawSummary = "", lastActionMessage = "";
-        boolean loading, resetting, resetCreditsKnown;
+        String name = "Codex 账号", authIndex = "", statusName = "", managementApiBase = "", planType = "", subscriptionActiveUntil = "", chatgptAccountId = "", error = "", resetCreditsError = "", rawSummary = "", lastActionMessage = "";
+        boolean enabled = true, loading, resetting, statusUpdating, resetCreditsKnown;
         long resetCreditsAvailableCount;
         JSONObject rawFile = new JSONObject();
         List<QuotaWindow> windows = new ArrayList<>();

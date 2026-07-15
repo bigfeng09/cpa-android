@@ -14,6 +14,10 @@
 
 ### Latest Fixes
 
+- Added per-account Codex authentication file enable/disable controls backed by `PATCH /v0/management/auth-files/status`; disabled files remain visible and can be re-enabled.
+- Fixed Codex `used_percent = 1` being incorrectly multiplied to 100%, which made an account with quota remaining appear as 0% remaining.
+- Added one automatic quota retry and preserved the last valid quota when the upstream response is empty, unrecognized, or temporarily fails.
+- Added quota percentage regression tests and updated the app to version `0.3.0` (`versionCode 4`).
 - Replaced the repeated per-model price cards with one compact price editor driven by a model dropdown.
 - Added a cost model filter so the cost trend and estimated cost can switch between all models and one selected model.
 - Added tested shared cost calculation/filter helpers and updated the app to version `0.2.0` (`versionCode 3`).
@@ -48,8 +52,8 @@
   - `rg -n -i 'ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z\-_]{35}|xox[baprs]-[A-Za-z0-9-]+' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
   - Result: no matches.
 - Ran from `cpa-android`:
-  - `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon`
-  - Result: `BUILD SUCCESSFUL`; 10 unit tests passed; Android Lint reported no issues.
+  - `$env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"; $env:ANDROID_SDK_ROOT=$env:ANDROID_HOME; .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon`
+  - Result: `BUILD SUCCESSFUL`; 13 unit tests passed; Android Lint reported no issues.
 - Ran APK privacy scan after copying the APK to a `.zip` and extracting it under `out/cpa-android-apk-scan`:
   - `rg -n -a -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
   - Result: no matches.
@@ -58,8 +62,8 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Current source version: `0.2.0` (`versionCode 3`)
+- Current source version: `0.3.0` (`versionCode 4`)
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
 - Public APK release: `v0.2.0`
-- Next action: install and smoke-test the `v0.2.0` APK on a real Android phone against user-supplied endpoints.
+- Next action: install and smoke-test the `0.3.0` debug APK on a real Android phone against user-supplied endpoints, especially auth-file toggling and quota refresh fallback behavior.

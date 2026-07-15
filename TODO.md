@@ -22,3 +22,6 @@
 - [x] Add GitHub Actions verification for unit tests, lint, and debug APK assembly.
 - [x] Simplify pricing to one shared editor with a model selector and add all-model/single-model cost filtering.
 - [x] Publish a fresh `v0.2.0` APK release from the latest verified source.
+- [x] Add Codex authentication file enable/disable controls to the account page.
+- [x] Fix the 1%-used quota parsing regression and retain the last valid quota on transient refresh failures.
+- [ ] Verify authentication file enable/disable and quota refresh behavior against a live CLI Proxy API instance.
