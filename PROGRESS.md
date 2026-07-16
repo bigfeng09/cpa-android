@@ -14,6 +14,9 @@
 
 ### Latest Fixes
 
+- Synced Android price edits back to CPA Usage Keeper through `PUT /api/v1/pricing/{model}`; local prices now change only after the server accepts the update.
+- Made successful `GET /api/v1/pricing` responses authoritative so stale Android-only price entries are removed instead of merged indefinitely.
+- Updated the app to version `0.3.1` (`versionCode 5`) for the price-sync release.
 - Added per-account Codex authentication file enable/disable controls backed by `PATCH /v0/management/auth-files/status`; disabled files remain visible and can be re-enabled.
 - Fixed Codex `used_percent = 1` being incorrectly multiplied to 100%, which made an account with quota remaining appear as 0% remaining.
 - Added one automatic quota retry and preserved the last valid quota when the upstream response is empty, unrecognized, or temporarily fails.
@@ -54,6 +57,10 @@
 - Ran from `cpa-android`:
   - `$env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"; $env:ANDROID_SDK_ROOT=$env:ANDROID_HOME; .\gradlew.bat testDebugUnitTest lintDebug assembleDebug --no-daemon`
   - Result: `BUILD SUCCESSFUL`; 13 unit tests passed; Android Lint reported no issues.
+- Re-ran the same Gradle verification after adding server-backed price synchronization.
+  - Result: `BUILD SUCCESSFUL`; unit tests, Android Lint, and debug APK assembly all passed.
+- Ran a clean `v0.3.1` release verification with `clean testDebugUnitTest lintDebug assembleDebug --no-daemon`.
+  - Result: `BUILD SUCCESSFUL`; 13 unit tests passed, Android Lint reported no issues, and the APK metadata matched version `0.3.1` (`versionCode 5`).
 - Ran APK privacy scan after copying the APK to a `.zip` and extracting it under `out/cpa-android-apk-scan`:
   - `rg -n -a -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
   - Result: no matches.
@@ -62,8 +69,8 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Current source version: `0.3.0` (`versionCode 4`)
+- Current source version: `0.3.1` (`versionCode 5`)
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
-- Public APK release: `v0.2.0`
-- Next action: install and smoke-test the `0.3.0` debug APK on a real Android phone against user-supplied endpoints, especially auth-file toggling and quota refresh fallback behavior.
+- Public APK release: `v0.3.1`
+- Next action: install and smoke-test the `0.3.1` debug APK on a real Android phone, especially server-backed price saving, auth-file toggling, and quota refresh fallback behavior.

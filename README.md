@@ -20,6 +20,8 @@
 - `/api/v1/models/used`
 - `/api/v1/pricing`
 
+App 中保存模型价格时，会通过 `/api/v1/pricing/{model}` 写回 CPA Usage Keeper。网页端或 Android 端修改后，在另一端刷新即可读取同一份服务端价格。
+
 ### 2. `CLI Proxy API` 的链接和管理密码，需要在进入 App 后到 `设置` 页面填写
 
 进入 App 后：
@@ -39,8 +41,8 @@
 
 ## 下载 APK
 
-- Release 页面：<https://github.com/bigfeng09/cpa-android/releases/tag/v0.2.0>
-- 直接下载：<https://github.com/bigfeng09/cpa-android/releases/download/v0.2.0/cpa-android-v0.2.0-debug.apk>
+- Release 页面：<https://github.com/bigfeng09/cpa-android/releases/tag/v0.3.1>
+- 直接下载：<https://github.com/bigfeng09/cpa-android/releases/download/v0.3.1/cpa-android-v0.3.1-debug.apk>
 
 ## 项目目录
 

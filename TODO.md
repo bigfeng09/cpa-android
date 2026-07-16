@@ -21,6 +21,7 @@
 - [x] Add URL normalization unit tests and make Android Lint pass with zero issues.
 - [x] Add GitHub Actions verification for unit tests, lint, and debug APK assembly.
 - [x] Simplify pricing to one shared editor with a model selector and add all-model/single-model cost filtering.
+- [x] Sync Android price edits to CPA Usage Keeper and treat server pricing as the source of truth.
 - [x] Publish a fresh `v0.2.0` APK release from the latest verified source.
 - [x] Add Codex authentication file enable/disable controls to the account page.
 - [x] Fix the 1%-used quota parsing regression and retain the last valid quota on transient refresh failures.

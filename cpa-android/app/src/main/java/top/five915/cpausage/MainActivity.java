@@ -142,6 +142,7 @@ public class MainActivity extends Activity {
     private DataSnapshot allSnapshot = new DataSnapshot();
     private DataSnapshot viewSnapshot = new DataSnapshot();
     private boolean loading = false;
+    private boolean priceSaving = false;
     private int selectedTab = 0;
     private int selectedRange = RANGE_4H;
     private String customStartDate = "";
@@ -1594,7 +1595,7 @@ public class MainActivity extends Activity {
         LinearLayout card = card();
         content.addView(card, matchWrapWithBottom(dp(12)));
         card.addView(text("价格配置", 16, TEXT, Typeface.BOLD));
-        addMuted(card, "单位：美元 / 1M token。启动或刷新时会读取网页端 /api/v1/pricing；手机端修改后本地保存并立即重算成本。 ");
+        addMuted(card, "单位：美元 / 1M token。启动或刷新时从服务端读取；手机端保存成功后会写回服务端并立即重算成本。冲突时以最后一次保存为准。");
 
         List<String> models = sortedPriceModels();
         if (models.isEmpty()) {
@@ -1643,22 +1644,48 @@ public class MainActivity extends Activity {
         addMuted(card, "左到右：输入价 / 输出价 / 缓存价");
 
         Button save = secondaryButton("保存当前模型价格");
+        save.setEnabled(!priceSaving);
+        if (priceSaving) save.setText("正在同步价格...");
         LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(-1, dp(42));
         saveLp.setMargins(0, dp(8), 0, 0);
         card.addView(save, saveLp);
         save.setOnClickListener(v -> {
+            if (priceSaving) return;
             PriceRule updated = new PriceRule();
             updated.model = model;
             updated.inputPer1m = parseDouble(input.getText().toString());
             updated.outputPer1m = parseDouble(output.getText().toString());
             updated.cachePer1m = parseDouble(cache.getText().toString());
-            priceTable.put(model, updated);
-            saveLocalPrices();
-            applyCost(allSnapshot);
-            viewSnapshot = applyRange(allSnapshot, selectedRange);
-            applyCost(viewSnapshot);
-            toast("已保存 " + model + " 的价格并重算成本");
-            render();
+            if (!Double.isFinite(updated.inputPer1m) || !Double.isFinite(updated.outputPer1m) || !Double.isFinite(updated.cachePer1m)
+                    || updated.inputPer1m < 0d || updated.outputPer1m < 0d || updated.cachePer1m < 0d) {
+                toast("请输入有效且不小于 0 的价格");
+                return;
+            }
+
+            priceSaving = true;
+            save.setEnabled(false);
+            save.setText("正在同步价格...");
+            executor.execute(() -> {
+                try {
+                    putPricing(updated);
+                    mainHandler.post(() -> {
+                        priceTable.put(model, updated);
+                        saveLocalPrices();
+                        applyCost(allSnapshot);
+                        viewSnapshot = applyRange(allSnapshot, selectedRange);
+                        applyCost(viewSnapshot);
+                        priceSaving = false;
+                        toast("已同步 " + model + " 的价格并重算成本");
+                        render();
+                    });
+                } catch (Exception e) {
+                    mainHandler.post(() -> {
+                        priceSaving = false;
+                        toast("价格同步失败，未修改本地价格：" + cleanError(e));
+                        render();
+                    });
+                }
+            });
         });
     }
 
@@ -1864,6 +1891,7 @@ public class MainActivity extends Activity {
         JSONArray pricing = root.optJSONArray("pricing");
         if (pricing == null) pricing = root.optJSONArray("prices");
         if (pricing == null) return;
+        Map<String, PriceRule> serverPrices = new HashMap<>();
         for (int i = 0; i < pricing.length(); i++) {
             JSONObject item = pricing.optJSONObject(i);
             if (item == null) continue;
@@ -1874,8 +1902,10 @@ public class MainActivity extends Activity {
             rule.inputPer1m = optDoubleAny(item, "prompt_price_per_1m", "input_price_per_1m", "inputPer1m", "promptPricePer1m");
             rule.outputPer1m = optDoubleAny(item, "completion_price_per_1m", "output_price_per_1m", "outputPer1m", "completionPricePer1m");
             rule.cachePer1m = optDoubleAny(item, "cache_price_per_1m", "cached_price_per_1m", "cachePer1m", "cachedPricePer1m");
-            priceTable.put(model, rule);
+            serverPrices.put(model, rule);
         }
+        priceTable.clear();
+        priceTable.putAll(serverPrices);
         saveLocalPrices();
     }
 
@@ -2075,6 +2105,29 @@ public class MainActivity extends Activity {
         conn.disconnect();
         if (code < 200 || code >= 300) throw new IOException("HTTP " + code + " " + cleanText(body, 160));
         return body;
+    }
+
+    private void putPricing(PriceRule rule) throws IOException, JSONException {
+        JSONObject body = new JSONObject();
+        body.put("prompt_price_per_1m", rule.inputPer1m);
+        body.put("completion_price_per_1m", rule.outputPer1m);
+        body.put("cache_price_per_1m", rule.cachePer1m);
+        request(
+                "PUT",
+                normalizeBaseUrl(baseUrl) + "/api/v1/pricing/" + Uri.encode(rule.model),
+                body.toString(),
+                usageKeeperHeaders(),
+                8000,
+                15000
+        );
+    }
+
+    private Map<String, String> usageKeeperHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        if (loginPassword != null && loginPassword.trim().length() > 0) {
+            headers.put("Authorization", "Bearer " + loginPassword.trim());
+        }
+        return headers;
     }
 
     private String request(String method, String fullUrl, String body, Map<String, String> headers, int connectTimeoutMs, int readTimeoutMs) throws IOException {
