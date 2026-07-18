@@ -218,6 +218,7 @@ public class MainActivity extends Activity {
         card.addView(addressInput, addressLp);
 
         card.addView(text("CPA Usage Keeper 密码", 16, TEXT, Typeface.BOLD));
+        addMuted(card, "登录信息会加密保存在本机，正常关闭后再次打开无需重新填写。卸载或清除应用数据会移除这些信息。");
         EditText passwordInput = passwordInput(loginPassword);
         LinearLayout.LayoutParams passwordLp = new LinearLayout.LayoutParams(-1, dp(48));
         passwordLp.setMargins(0, dp(10), 0, 0);
@@ -273,12 +274,12 @@ public class MainActivity extends Activity {
             loginPassword = passwordInput.getText().toString().trim();
             quotaUrl = correctedQuotaUrl(quotaUrl);
             boolean passwordSaved = saveSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD, loginPassword);
-            prefs.edit()
+            boolean sessionSaved = prefs.edit()
                     .putString(KEY_BASE_URL, baseUrl)
                     .putString(KEY_QUOTA_URL, quotaUrl)
                     .putBoolean(KEY_LOGGED_IN, true)
-                    .apply();
-            if (!passwordSaved) toast("密码未能加密保存，仅本次会话可用");
+                    .commit();
+            if (!passwordSaved || !sessionSaved) toast("登录信息未能完整保存，仅本次会话可用");
             showApp();
             refreshAll();
         });
@@ -1829,7 +1830,8 @@ public class MainActivity extends Activity {
         quotaDetail = "输入管理 Key 后可读取每个 Codex 账号的实时额度。";
         clearSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD);
         clearSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY);
-        prefs.edit().putBoolean(KEY_LOGGED_IN, false).apply();
+        boolean logoutSaved = prefs.edit().putBoolean(KEY_LOGGED_IN, false).commit();
+        if (!logoutSaved) toast("退出状态未能保存，请重试");
         showLoginScreen();
     }
 
@@ -1843,7 +1845,14 @@ public class MainActivity extends Activity {
         card.addView(input, inputLp);
         Button save = primaryButton("保存统计地址并刷新");
         card.addView(save, new LinearLayout.LayoutParams(-1, dp(48)));
-        save.setOnClickListener(v -> { hideKeyboard(input); baseUrl = normalizeBaseUrl(input.getText().toString()); prefs.edit().putString(KEY_BASE_URL, baseUrl).apply(); refreshAll(); });
+        save.setOnClickListener(v -> {
+            hideKeyboard(input);
+            baseUrl = normalizeBaseUrl(input.getText().toString());
+            if (!prefs.edit().putString(KEY_BASE_URL, baseUrl).commit()) {
+                toast("统计地址未能保存，仅本次会话可用");
+            }
+            refreshAll();
+        });
 
         LinearLayout quota = card();
         content.addView(quota, matchWrapWithBottom(dp(12)));
@@ -1853,7 +1862,12 @@ public class MainActivity extends Activity {
         quota.addView(q, qLp);
         Button saveQ = secondaryButton("保存账号页地址");
         quota.addView(saveQ, new LinearLayout.LayoutParams(-1, dp(48)));
-        saveQ.setOnClickListener(v -> { hideKeyboard(q); quotaUrl = correctedQuotaUrl(q.getText().toString()); prefs.edit().putString(KEY_QUOTA_URL, quotaUrl).apply(); toast("已保存账号页地址"); });
+        saveQ.setOnClickListener(v -> {
+            hideKeyboard(q);
+            quotaUrl = correctedQuotaUrl(q.getText().toString());
+            boolean saved = prefs.edit().putString(KEY_QUOTA_URL, quotaUrl).commit();
+            toast(saved ? "已保存账号页地址" : "账号页地址未能保存，仅本次会话可用");
+        });
 
         EditText key = passwordInput(managementKey);
         key.setHint("管理 Key / Management Key");
@@ -2080,8 +2094,9 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(connectTimeoutMs);
         conn.setReadTimeout(readTimeoutMs);
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3");
-        if (loginPassword != null && loginPassword.trim().length() > 0) conn.setRequestProperty("Authorization", "Bearer " + loginPassword.trim());
+        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3.2");
+        String password = currentLoginPassword();
+        if (password.length() > 0) conn.setRequestProperty("Authorization", "Bearer " + password);
         int code = conn.getResponseCode();
         InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
         String body = readAll(stream);
@@ -2097,7 +2112,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(connectTimeoutMs);
         conn.setReadTimeout(readTimeoutMs);
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3");
+        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3.2");
         if (password != null && password.trim().length() > 0) conn.setRequestProperty("Authorization", "Bearer " + password.trim());
         int code = conn.getResponseCode();
         InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
@@ -2124,8 +2139,9 @@ public class MainActivity extends Activity {
 
     private Map<String, String> usageKeeperHeaders() {
         Map<String, String> headers = new HashMap<>();
-        if (loginPassword != null && loginPassword.trim().length() > 0) {
-            headers.put("Authorization", "Bearer " + loginPassword.trim());
+        String password = currentLoginPassword();
+        if (password.length() > 0) {
+            headers.put("Authorization", "Bearer " + password);
         }
         return headers;
     }
@@ -2136,7 +2152,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(connectTimeoutMs);
         conn.setReadTimeout(readTimeoutMs);
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3");
+        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3.2");
         if (headers != null) for (Map.Entry<String, String> entry : headers.entrySet()) conn.setRequestProperty(entry.getKey(), entry.getValue());
         if (body != null) {
             conn.setDoOutput(true);
@@ -3199,6 +3215,7 @@ public class MainActivity extends Activity {
     private String normalizeQuotaUrl(String raw) { return UrlUtils.normalizeQuotaUrl(raw, DEFAULT_QUOTA_URL); }
     private String stripUrlHashAndQuery(String value) { return UrlUtils.stripUrlHashAndQuery(value); }
     private String currentQuotaUrl() { String value = quotaUrl == null ? "" : quotaUrl.trim(); if (prefs != null) { String saved = prefs.getString(KEY_QUOTA_URL, value.length() == 0 ? DEFAULT_QUOTA_URL : value); if (saved != null && saved.trim().length() > 0) value = saved.trim(); } value = correctedQuotaUrl(value); quotaUrl = value; return value; }
+    private String currentLoginPassword() { String value = loginPassword == null ? "" : loginPassword.trim(); if (value.length() == 0) value = readSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD); loginPassword = value == null ? "" : value.trim(); return loginPassword; }
     private String currentManagementKey() { String value = managementKey == null ? "" : managementKey.trim(); if (value.length() == 0) value = readSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY); managementKey = value == null ? "" : value.trim(); return managementKey; }
     private String currentManagementApiBase() { return managementApiBaseFromUrl(currentQuotaUrl()); }
     private void migrateSeparatedCredentials() { if (prefs.getBoolean(KEY_CREDENTIALS_SEPARATED, false)) return; if (managementKey.length() > 0 && managementKey.equals(loginPassword)) { managementKey = ""; clearSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY); } prefs.edit().putBoolean(KEY_CREDENTIALS_SEPARATED, true).apply(); }

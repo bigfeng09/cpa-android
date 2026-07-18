@@ -14,6 +14,9 @@
 
 ### Latest Fixes
 
+- Preserved encrypted credentials after transient Android Keystore read failures and retry credential recovery before authenticated requests.
+- Switched login state and endpoint saves to synchronous commits so reopening the app reliably restores the previous connection.
+- Updated the app to version `0.3.2` (`versionCode 6`) for the session persistence fix.
 - Synced Android price edits back to CPA Usage Keeper through `PUT /api/v1/pricing/{model}`; local prices now change only after the server accepts the update.
 - Made successful `GET /api/v1/pricing` responses authoritative so stale Android-only price entries are removed instead of merged indefinitely.
 - Updated the app to version `0.3.1` (`versionCode 5`) for the price-sync release.
@@ -61,6 +64,9 @@
   - Result: `BUILD SUCCESSFUL`; unit tests, Android Lint, and debug APK assembly all passed.
 - Ran a clean `v0.3.1` release verification with `clean testDebugUnitTest lintDebug assembleDebug --no-daemon`.
   - Result: `BUILD SUCCESSFUL`; 13 unit tests passed, Android Lint reported no issues, and the APK metadata matched version `0.3.1` (`versionCode 5`).
+- Ran a clean `v0.3.2` verification with the same Gradle command.
+  - Result: `BUILD SUCCESSFUL`; 13 unit tests passed, Android Lint reported no issues, and debug APK assembly succeeded.
+- Compared APK signer certificates: `v0.3.2` matches the published `v0.3.1` certificate SHA-256, so an in-place upgrade can preserve app data.
 - Ran APK privacy scan after copying the APK to a `.zip` and extracting it under `out/cpa-android-apk-scan`:
   - `rg -n -a -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
   - Result: no matches.
@@ -69,8 +75,8 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Current source version: `0.3.1` (`versionCode 5`)
+- Current source version: `0.3.2` (`versionCode 6`)
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
 - Public APK release: `v0.3.1`
-- Next action: install and smoke-test the `0.3.1` debug APK on a real Android phone, especially server-backed price saving, auth-file toggling, and quota refresh fallback behavior.
+- Next action: install the `v0.3.2` debug APK over `v0.3.1` and verify that connection, login password, and management settings survive force-stop and relaunch.

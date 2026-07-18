@@ -22,6 +22,8 @@
 
 App 中保存模型价格时，会通过 `/api/v1/pricing/{model}` 写回 CPA Usage Keeper。网页端或 Android 端修改后，在另一端刷新即可读取同一份服务端价格。
 
+服务地址、登录状态、CPA Usage Keeper 密码和 Management Key 会保存在应用私有存储中，其中密码和 Key 使用 Android Keystore 加密。正常关闭或强制停止后再次打开会自动恢复；主动退出、清除应用数据或卸载应用会删除这些信息。安装新版 APK 时必须使用与当前版本相同的签名，Android 才能直接升级并保留数据。
+
 ### 2. `CLI Proxy API` 的链接和管理密码，需要在进入 App 后到 `设置` 页面填写
 
 进入 App 后：

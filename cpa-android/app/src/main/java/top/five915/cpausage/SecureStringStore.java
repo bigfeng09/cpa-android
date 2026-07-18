@@ -31,7 +31,7 @@ final class SecureStringStore {
             try {
                 return decrypt(encrypted);
             } catch (Exception ignored) {
-                remove(encryptedKey, legacyPlainKey);
+                // Keep the ciphertext so a transient Keystore failure can be retried later.
             }
         }
 
@@ -46,21 +46,18 @@ final class SecureStringStore {
     boolean write(String encryptedKey, String legacyPlainKey, String value) {
         String raw = value == null ? "" : value.trim();
         if (raw.length() == 0) {
-            remove(encryptedKey, legacyPlainKey);
-            return true;
+            return remove(encryptedKey, legacyPlainKey);
         }
         try {
             String encrypted = encrypt(raw);
-            prefs.edit().putString(encryptedKey, encrypted).remove(legacyPlainKey).apply();
-            return true;
+            return prefs.edit().putString(encryptedKey, encrypted).remove(legacyPlainKey).commit();
         } catch (Exception ignored) {
-            prefs.edit().remove(encryptedKey).remove(legacyPlainKey).apply();
             return false;
         }
     }
 
-    void remove(String encryptedKey, String legacyPlainKey) {
-        prefs.edit().remove(encryptedKey).remove(legacyPlainKey).apply();
+    boolean remove(String encryptedKey, String legacyPlainKey) {
+        return prefs.edit().remove(encryptedKey).remove(legacyPlainKey).commit();
     }
 
     private String encrypt(String value) throws Exception {

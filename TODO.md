@@ -16,6 +16,7 @@
 - [ ] Verify Codex OAuth authorization link, callback URL submission, and post-login account refresh.
 - [ ] Add backend-side paginated/aggregated endpoints for large usage/log datasets if mobile parsing is too slow.
 - [x] Move stored password / management key to Android Keystore-backed encrypted storage.
+- [x] Preserve saved connection and credentials across normal app restarts and same-signature APK upgrades.
 - [x] Separate the CPA Usage Keeper password from the CLI Proxy API management key.
 - [x] Add a real logout flow that clears both encrypted credentials.
 - [x] Add URL normalization unit tests and make Android Lint pass with zero issues.
