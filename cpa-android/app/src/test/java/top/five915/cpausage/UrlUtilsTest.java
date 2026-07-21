@@ -1,6 +1,8 @@
 package top.five915.cpausage;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -16,6 +18,19 @@ public class UrlUtilsTest {
     @Test
     public void normalizeBaseUrlRemovesPageQueryAndFragment() {
         assertEquals("https://example.test", UrlUtils.normalizeBaseUrl("https://example.test/management.html?x=1#/quota", DEFAULT_BASE));
+    }
+
+    @Test
+    public void usableBaseUrlRejectsBlankAndDocumentationPlaceholders() {
+        assertFalse(UrlUtils.isUsableBaseUrl("  ", DEFAULT_BASE));
+        assertFalse(UrlUtils.isUsableBaseUrl("http://your-host:8318", DEFAULT_BASE));
+        assertFalse(UrlUtils.isUsableBaseUrl("https://your-domain.example", DEFAULT_BASE));
+    }
+
+    @Test
+    public void usableBaseUrlAcceptsLanAndRealDomainHosts() {
+        assertTrue(UrlUtils.isUsableBaseUrl("192.168.1.20:8318", DEFAULT_BASE));
+        assertTrue(UrlUtils.isUsableBaseUrl("https://usage.example.com", DEFAULT_BASE));
     }
 
     @Test

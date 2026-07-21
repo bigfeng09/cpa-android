@@ -27,3 +27,10 @@
 - [x] Add Codex authentication file enable/disable controls to the account page.
 - [x] Fix the 1%-used quota parsing regression and retain the last valid quota on transient refresh failures.
 - [ ] Verify authentication file enable/disable and quota refresh behavior against a live CLI Proxy API instance.
+- [x] Add two-step onboarding for Usage Keeper and optional CLI Proxy API setup.
+- [x] Validate the Usage Keeper endpoint before saving and proceeding from onboarding.
+- [x] Consolidate the app into four bottom tabs: overview, accounts, usage, and more.
+- [x] Add a health-first overview and direct problem-resolution actions.
+- [x] Load lightweight status data before the full usage payload.
+- [x] Cache the last successful dashboard summary with explicit stale-range labeling.
+- [ ] Verify `v0.4.0` onboarding, progressive loading, cached startup, and same-signature upgrade on a real Android phone.

@@ -13,6 +13,14 @@
 - Local secrets, API keys, passwords, build outputs, APK files, and machine-specific SDK config are excluded from Git.
 
 ### Latest Fixes
+- Productized the app as `v0.4.0` (`versionCode 7`) with a four-tab `总览 / 账号 / 用量 / 更多` information architecture.
+- Added a two-step onboarding flow for Usage Keeper and optional CLI Proxy API account-service configuration.
+- Required a real, reachable `/api/v1/status` check before onboarding can save the Usage Keeper connection and proceed.
+- Added a health-first overview with service, authentication, reliability, and account-service status plus direct account/log actions.
+- Changed refresh to progressive loading: lightweight session/status/model/pricing responses render before the large usage payload completes.
+- Added a lightweight dashboard cache that is explicitly labeled with its original range until online usage data replaces it.
+- Consolidated cost trends, model usage, and credentials under `用量`, and logs/settings under `更多`.
+- Added URL validation regression coverage for blank, placeholder, LAN, and real-domain service addresses.
 
 - Preserved encrypted credentials after transient Android Keystore read failures and retry credential recovery before authenticated requests.
 - Switched login state and endpoint saves to synchronous commits so reopening the app reliably restores the previous connection.
@@ -67,6 +75,9 @@
 - Ran a clean `v0.3.2` verification with the same Gradle command.
   - Result: `BUILD SUCCESSFUL`; 13 unit tests passed, Android Lint reported no issues, and debug APK assembly succeeded.
 - Compared APK signer certificates: `v0.3.2` matches the published `v0.3.1` certificate SHA-256, so an in-place upgrade can preserve app data.
+- Ran a clean `v0.4.0` verification with `clean testDebugUnitTest lintDebug assembleDebug --no-daemon`.
+  - Result: `BUILD SUCCESSFUL`; 15 unit tests passed; the Lint XML contains zero issues; APK metadata is `0.4.0` (`versionCode 7`).
+- Confirmed the `v0.4.0` signer SHA-256 remains `ad0312960d166300a9b6c259bbc46e4ce9e500d87a5abba9fc1584c01a63f105`, matching `v0.3.2` for in-place upgrades.
 - Ran APK privacy scan after copying the APK to a `.zip` and extracting it under `out/cpa-android-apk-scan`:
   - `rg -n -a -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+' out/cpa-android-apk-scan`
   - Result: no matches.
@@ -75,8 +86,8 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Current source version: `0.3.2` (`versionCode 6`)
+- Current source version: `0.4.0` (`versionCode 7`)
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
-- Public APK release: `v0.3.1`
-- Next action: install the `v0.3.2` debug APK over `v0.3.1` and verify that connection, login password, and management settings survive force-stop and relaunch.
+- Public APK release before this local work: `v0.3.2`
+- Next action: install the verified `v0.4.0` APK over `v0.3.2` and validate onboarding, cache labeling, progressive loading, and credential persistence on a real phone.

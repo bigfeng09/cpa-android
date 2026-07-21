@@ -1,5 +1,8 @@
 package top.five915.cpausage;
 
+import java.net.URI;
+import java.util.Locale;
+
 final class UrlUtils {
     private static final String MANAGEMENT_PAGE = "/management.html";
     private static final String MANAGEMENT_API = "/v0/management";
@@ -15,6 +18,19 @@ final class UrlUtils {
         }
         if (!hasHttpScheme(value)) value = "http://" + value;
         return stripTrailingSlashes(value);
+    }
+
+    static boolean isUsableBaseUrl(String raw, String defaultBaseUrl) {
+        if (raw == null || raw.trim().length() == 0) return false;
+        try {
+            URI uri = URI.create(normalizeBaseUrl(raw, defaultBaseUrl));
+            String host = uri.getHost();
+            if (host == null || host.length() == 0) return false;
+            String normalizedHost = host.toLowerCase(Locale.ROOT);
+            return !"your-host".equals(normalizedHost) && !normalizedHost.endsWith(".example");
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     static String normalizeQuotaUrl(String raw, String defaultQuotaUrl) {

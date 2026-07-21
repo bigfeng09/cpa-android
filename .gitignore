@@ -3,6 +3,7 @@
 build/
 **/.gradle/
 **/build/
+outputs/
 
 # Local machine SDK/config
 local.properties

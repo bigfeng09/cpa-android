@@ -79,6 +79,7 @@ public class MainActivity extends Activity {
     private static final String KEY_SELECTED_RANGE = "selected_range";
     private static final String KEY_CUSTOM_START_DATE = "custom_start_date";
     private static final String KEY_CUSTOM_END_DATE = "custom_end_date";
+    private static final String KEY_DASHBOARD_CACHE = "dashboard_cache_v1";
     private static final String DEFAULT_BASE_URL = "http://your-host:8318";
     private static final String DEFAULT_QUOTA_URL = "https://your-domain.example/management.html#/quota";
 
@@ -142,6 +143,7 @@ public class MainActivity extends Activity {
     private DataSnapshot allSnapshot = new DataSnapshot();
     private DataSnapshot viewSnapshot = new DataSnapshot();
     private boolean loading = false;
+    private boolean loadingUsage = false;
     private boolean priceSaving = false;
     private int selectedTab = 0;
     private int selectedRange = RANGE_4H;
@@ -178,6 +180,7 @@ public class MainActivity extends Activity {
         customStartDate = prefs.getString(KEY_CUSTOM_START_DATE, "");
         customEndDate = prefs.getString(KEY_CUSTOM_END_DATE, "");
         loadLocalPrices();
+        loadDashboardCache();
 
         if (prefs.getBoolean(KEY_LOGGED_IN, prefs.contains(KEY_BASE_URL))) {
             showApp();
@@ -202,7 +205,8 @@ public class MainActivity extends Activity {
         scroll.addView(panel, new ScrollView.LayoutParams(-1, -2));
         frame.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
 
-        panel.addView(text("CPA Usage 登录", 28, TEXT, Typeface.BOLD));
+        panel.addView(text("连接 CPA Usage", 28, TEXT, Typeface.BOLD));
+        addMuted(panel, "第 1/2 步 · 先连接统计服务，下一步可配置账号额度服务。");
 
         LinearLayout card = card();
         LinearLayout.LayoutParams cardLp = matchWrapWithBottom(0);
@@ -246,7 +250,13 @@ public class MainActivity extends Activity {
         card.addView(testBtn, testLp);
         testBtn.setOnClickListener(v -> {
             hideKeyboard(addressInput);
-            String url = normalizeBaseUrl(addressInput.getText().toString());
+            String rawUrl = addressInput.getText().toString();
+            if (!UrlUtils.isUsableBaseUrl(rawUrl, DEFAULT_BASE_URL)) {
+                status.setText("请输入真实可访问的服务地址，不能使用示例地址。");
+                addressInput.requestFocus();
+                return;
+            }
+            String url = normalizeBaseUrl(rawUrl);
             String pass = passwordInput.getText().toString().trim();
             testBtn.setEnabled(false);
             status.setText(R.string.testing_status);
@@ -264,22 +274,113 @@ public class MainActivity extends Activity {
             });
         });
 
-        Button loginBtn = primaryButton("登录并进入");
+        Button loginBtn = primaryButton("下一步：配置账号服务");
         LinearLayout.LayoutParams loginLp = new LinearLayout.LayoutParams(-1, dp(50));
         loginLp.setMargins(0, dp(14), 0, 0);
         card.addView(loginBtn, loginLp);
         loginBtn.setOnClickListener(v -> {
             hideKeyboard(passwordInput);
-            baseUrl = normalizeBaseUrl(addressInput.getText().toString());
-            loginPassword = passwordInput.getText().toString().trim();
-            quotaUrl = correctedQuotaUrl(quotaUrl);
-            boolean passwordSaved = saveSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD, loginPassword);
-            boolean sessionSaved = prefs.edit()
-                    .putString(KEY_BASE_URL, baseUrl)
-                    .putString(KEY_QUOTA_URL, quotaUrl)
-                    .putBoolean(KEY_LOGGED_IN, true)
-                    .commit();
-            if (!passwordSaved || !sessionSaved) toast("登录信息未能完整保存，仅本次会话可用");
+            String rawUrl = addressInput.getText().toString();
+            if (!UrlUtils.isUsableBaseUrl(rawUrl, DEFAULT_BASE_URL)) {
+                status.setText("请输入真实可访问的服务地址，不能使用示例地址。");
+                addressInput.requestFocus();
+                return;
+            }
+            String url = normalizeBaseUrl(rawUrl);
+            String pass = passwordInput.getText().toString().trim();
+            loginBtn.setEnabled(false);
+            testBtn.setEnabled(false);
+            loginBtn.setText("正在验证...");
+            status.setText("正在验证服务和登录信息...");
+            executor.execute(() -> {
+                try {
+                    new JSONObject(getWithPassword(url, "/api/v1/status", pass, 8000, 15000));
+                    baseUrl = url;
+                    loginPassword = pass;
+                    quotaUrl = correctedQuotaUrl(quotaUrl);
+                    boolean passwordSaved = saveSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD, loginPassword);
+                    boolean connectionSaved = prefs.edit().putString(KEY_BASE_URL, baseUrl).putString(KEY_QUOTA_URL, quotaUrl).commit();
+                    runOnUiThread(() -> {
+                        if (!passwordSaved || !connectionSaved) toast("连接信息未能完整保存，仅本次会话可用");
+                        showManagementSetupScreen();
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> {
+                        status.setText(getString(R.string.connection_failed_format, cleanError(e)));
+                        loginBtn.setText("下一步：配置账号服务");
+                        loginBtn.setEnabled(true);
+                        testBtn.setEnabled(true);
+                    });
+                }
+            });
+        });
+
+        setContentView(frame);
+    }
+
+    private void showManagementSetupScreen() {
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackgroundColor(BG);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout panel = vertical();
+        panel.setPadding(dp(22), dp(42), dp(22), dp(24));
+        scroll.addView(panel, new ScrollView.LayoutParams(-1, -2));
+        frame.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+
+        panel.addView(text("配置账号服务", 28, TEXT, Typeface.BOLD));
+        addMuted(panel, "第 2/2 步 · 用于读取 Codex 账号、额度和认证文件状态，也可以稍后在“更多”中配置。");
+
+        LinearLayout keeper = card();
+        LinearLayout.LayoutParams keeperLp = matchWrapWithBottom(dp(12));
+        keeperLp.setMargins(0, dp(22), 0, dp(12));
+        panel.addView(keeper, keeperLp);
+        keeper.addView(text("统计服务已保存", 16, TEXT, Typeface.BOLD));
+        addKeyValue(keeper, "Usage Keeper", baseUrl);
+
+        LinearLayout card = card();
+        panel.addView(card, matchWrapWithBottom(0));
+        card.addView(text("CLI Proxy API 地址", 16, TEXT, Typeface.BOLD));
+        addMuted(card, "支持根地址、management.html#/quota 或 /v0/management 地址。");
+        EditText quotaInput = input(quotaUrl);
+        LinearLayout.LayoutParams quotaLp = new LinearLayout.LayoutParams(-1, dp(48));
+        quotaLp.setMargins(0, dp(10), 0, 0);
+        card.addView(quotaInput, quotaLp);
+
+        card.addView(text("Management Key", 16, TEXT, Typeface.BOLD));
+        EditText keyInput = passwordInput(managementKey);
+        keyInput.setHint("管理 Key / Management Key");
+        LinearLayout.LayoutParams keyLp = new LinearLayout.LayoutParams(-1, dp(48));
+        keyLp.setMargins(0, dp(10), 0, 0);
+        card.addView(keyInput, keyLp);
+
+        Button finish = primaryButton("保存并进入总览");
+        LinearLayout.LayoutParams finishLp = new LinearLayout.LayoutParams(-1, dp(50));
+        finishLp.setMargins(0, dp(14), 0, 0);
+        card.addView(finish, finishLp);
+        finish.setOnClickListener(v -> {
+            hideKeyboard(keyInput);
+            quotaUrl = correctedQuotaUrl(quotaInput.getText().toString());
+            managementKey = keyInput.getText().toString().trim();
+            boolean keySaved = saveSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY, managementKey);
+            boolean sessionSaved = prefs.edit().putString(KEY_QUOTA_URL, quotaUrl).putBoolean(KEY_LOGGED_IN, true).commit();
+            if (!keySaved || !sessionSaved) toast("账号服务配置未能完整保存，仅本次会话可用");
+            showApp();
+            refreshAll();
+        });
+
+        LinearLayout secondary = horizontal();
+        secondary.setPadding(0, dp(10), 0, 0);
+        card.addView(secondary, new LinearLayout.LayoutParams(-1, dp(48)));
+        Button back = secondaryButton("返回上一步");
+        secondary.addView(back, weightLp(1));
+        back.setOnClickListener(v -> showLoginScreen());
+        Button skip = secondaryButton("暂时跳过");
+        LinearLayout.LayoutParams skipLp = weightLp(1);
+        skipLp.setMargins(dp(10), 0, 0, 0);
+        secondary.addView(skip, skipLp);
+        skip.setOnClickListener(v -> {
+            boolean sessionSaved = prefs.edit().putBoolean(KEY_LOGGED_IN, true).commit();
+            if (!sessionSaved) toast("登录状态未能保存，仅本次会话可用");
             showApp();
             refreshAll();
         });
@@ -408,7 +509,7 @@ public class MainActivity extends Activity {
         Button refresh = secondaryButton("刷新");
         titleRow.addView(refresh, new LinearLayout.LayoutParams(dp(78), dp(40)));
         refresh.setOnClickListener(v -> {
-            if (selectedTab == 4) {
+            if (selectedTab == 1) {
                 refreshQuotaAccounts();
                 refreshApiKeys();
             }
@@ -433,7 +534,7 @@ public class MainActivity extends Activity {
         bottomNav.setBackgroundColor(Color.WHITE);
         root.addView(bottomNav, new LinearLayout.LayoutParams(-1, dp(66)));
 
-        String[] labels = new String[]{"首页", "统计", "模型", "日志", "账号", "设置"};
+        String[] labels = new String[]{"总览", "账号", "用量", "更多"};
         navItems = new TextView[labels.length];
         for (int i = 0; i < labels.length; i++) {
             final int index = i;
@@ -451,28 +552,73 @@ public class MainActivity extends Activity {
 
     private void refreshAll() {
         if (loading) return;
+        DataSnapshot previousView = viewSnapshot.copySummary();
+        String previousRangeLabel = previousView.fromCache ? nonEmpty(previousView.cachedRangeLabel, rangeLabel(selectedRange)) : rangeLabel(selectedRange);
         if (!isNetworkLikelyAvailable()) toast("当前网络不可用");
         loading = true;
-        setStatus("刷新中", BLUE, SOFT_BLUE, "正在读取 Usage Keeper 数据");
+        loadingUsage = false;
+        setStatus("刷新中", BLUE, SOFT_BLUE, "正在连接 Usage Keeper");
         render();
 
         executor.execute(() -> {
-            DataSnapshot next = new DataSnapshot();
-            next.baseUrl = baseUrl;
+            DataSnapshot fast = new DataSnapshot();
+            fast.baseUrl = baseUrl;
             StringBuilder errors = new StringBuilder();
-            try { parseSession(next, new JSONObject(get(baseUrl, "/api/v1/auth/session", 8000, 15000))); } catch (Exception e) { appendError(errors, "会话", e); }
-            try { parseStatus(next, new JSONObject(get(baseUrl, "/api/v1/status", 8000, 15000))); } catch (Exception e) { appendError(errors, "状态", e); }
-            try { parseModelNames(next, new JSONObject(get(baseUrl, "/api/v1/models/used", 8000, 15000))); } catch (Exception e) { appendError(errors, "模型", e); }
+            JSONObject sessionObj = null;
+            JSONObject statusObj = null;
+            JSONObject modelsObj = null;
+            try { sessionObj = new JSONObject(get(baseUrl, "/api/v1/auth/session", 8000, 15000)); parseSession(fast, sessionObj); } catch (Exception e) { appendError(errors, "会话", e); }
+            try { statusObj = new JSONObject(get(baseUrl, "/api/v1/status", 8000, 15000)); parseStatus(fast, statusObj); } catch (Exception e) { appendError(errors, "状态", e); }
+            try { modelsObj = new JSONObject(get(baseUrl, "/api/v1/models/used", 8000, 15000)); parseModelNames(fast, modelsObj); } catch (Exception e) { appendError(errors, "模型", e); }
             try { parsePricing(new JSONObject(get(baseUrl, "/api/v1/pricing", 8000, 15000))); } catch (Exception e) { appendError(errors, "价格", e); }
-            try { parseUsage(next, new JSONObject(get(baseUrl, "/api/v1/usage", 10000, 90000))); } catch (Exception e) { appendError(errors, "统计", e); }
-            applyCost(next);
-            if (errors.length() > 0) next.error = errors.toString().trim();
-            next.loadedAtMillis = System.currentTimeMillis();
+            fast.error = errors.toString().trim();
+            fast.loadedAtMillis = System.currentTimeMillis();
+            fast.fromCache = false;
+            DataSnapshot fastResult = fast.copySummary();
             mainHandler.post(() -> {
-                allSnapshot = next;
-                viewSnapshot = applyRange(next, selectedRange);
+                allSnapshot = fastResult;
+                viewSnapshot = fastResult.copySummary();
+                loadingUsage = true;
+                render();
+            });
+
+            DataSnapshot full = new DataSnapshot();
+            full.baseUrl = baseUrl;
+            try { if (sessionObj != null) parseSession(full, sessionObj); } catch (Exception ignored) {}
+            try { if (statusObj != null) parseStatus(full, statusObj); } catch (Exception ignored) {}
+            try { if (modelsObj != null) parseModelNames(full, modelsObj); } catch (Exception ignored) {}
+            StringBuilder fullErrors = new StringBuilder(errors.toString());
+            boolean usageSucceeded = false;
+            try {
+                parseUsage(full, new JSONObject(get(baseUrl, "/api/v1/usage", 10000, 90000)));
+                usageSucceeded = true;
+            } catch (Exception e) {
+                appendError(fullErrors, "统计", e);
+            }
+            DataSnapshot result = full;
+            if (!usageSucceeded && previousView.hasAnyData()) {
+                result = previousView.copySummary();
+                result.baseUrl = baseUrl;
+                try { if (sessionObj != null) parseSession(result, sessionObj); } catch (Exception ignored) {}
+                try { if (statusObj != null) parseStatus(result, statusObj); } catch (Exception ignored) {}
+                result.error = fullErrors.toString().trim();
+                result.fromCache = true;
+                result.cachedRangeLabel = previousRangeLabel;
+            } else {
+                applyCost(result);
+                result.error = fullErrors.toString().trim();
+                result.loadedAtMillis = System.currentTimeMillis();
+                result.fromCache = false;
+            }
+            DataSnapshot finalResult = result;
+            boolean shouldSaveCache = usageSucceeded;
+            mainHandler.post(() -> {
+                allSnapshot = finalResult;
+                viewSnapshot = applyRange(finalResult, selectedRange);
                 applyCost(viewSnapshot);
                 loading = false;
+                loadingUsage = false;
+                if (shouldSaveCache) saveDashboardCache(viewSnapshot, selectedRange);
                 render();
             });
         });
@@ -484,7 +630,7 @@ public class MainActivity extends Activity {
         updateNav();
         updateHeader();
 
-        if (selectedTab == 4) {
+        if (selectedTab == 1) {
             renderQuotaPage();
             return;
         }
@@ -497,15 +643,15 @@ public class MainActivity extends Activity {
         LinearLayout old = content;
         content = body;
 
-        if (selectedTab != 5) renderRangeSelector();
-        if (selectedTab == 5) {
+        if (selectedTab == 3) renderMoreNavigation();
+        if (selectedTab == 0 || selectedTab == 2 || (selectedTab == 3 && logTab == 0)) renderRangeSelector();
+        if (selectedTab == 3 && logTab == 1) {
             renderSettings();
         } else if (loading && !viewSnapshot.hasAnyData()) renderLoading();
         else {
             if (viewSnapshot.error != null && viewSnapshot.error.length() > 0) renderErrorBanner();
             if (selectedTab == 0) renderDashboard();
-            else if (selectedTab == 1) renderStats();
-            else if (selectedTab == 2) renderResources();
+            else if (selectedTab == 2) renderUsageHub();
             else renderLogs();
         }
         content = old;
@@ -533,7 +679,8 @@ public class MainActivity extends Activity {
         spinner.post(() -> initialized[0] = true);
         row.addView(spinner, new LinearLayout.LayoutParams(0, dp(48), 1));
         if (selectedRange == RANGE_CUSTOM) renderCustomDateControls();
-        TextView note = text("当前范围：" + rangeLabel(selectedRange) + "。请求数、Token、模型、凭证、日志都会按范围重新统计。", 12, MUTED, Typeface.NORMAL);
+        String rangeNote = viewSnapshot.fromCache ? "当前显示缓存范围：" + nonEmpty(viewSnapshot.cachedRangeLabel, "未知") + "；在线刷新完成后再按所选范围重算。" : "当前范围：" + rangeLabel(selectedRange) + "。请求数、Token、模型、凭证、日志都会按范围重新统计。";
+        TextView note = text(rangeNote, 12, MUTED, Typeface.NORMAL);
         note.setPadding(dp(4), 0, dp(4), dp(10));
         content.addView(note);
     }
@@ -1439,17 +1586,24 @@ public class MainActivity extends Activity {
     }
 
     private void updateHeader() {
-        if (headerMeta != null) headerMeta.setText(selectedTab >= 4 ? currentManagementApiBase() : baseUrl);
-        if (selectedTab == 4) {
+        if (headerMeta != null) {
+            if (selectedTab == 1) headerMeta.setText(currentManagementApiBase());
+            else if (selectedTab == 3 && logTab == 1) headerMeta.setText("本机配置");
+            else headerMeta.setText(baseUrl);
+        }
+        if (selectedTab == 1) {
             setStatus("账号", BLUE, SOFT_BLUE, "CLI Proxy API 账号额度");
             return;
         }
-        if (selectedTab == 5) {
+        if (selectedTab == 3 && logTab == 1) {
             setStatus("设置", BLUE, SOFT_BLUE, "CPA Usage Keeper 与 CLI Proxy API");
             return;
         }
         if (loading) {
-            setStatus("刷新中", BLUE, SOFT_BLUE, "正在读取 Usage Keeper 数据");
+            if (loadingUsage && viewSnapshot.hasAnyData()) setStatus("加载用量", BLUE, SOFT_BLUE, "基础状态已更新，正在读取完整用量");
+            else setStatus("刷新中", BLUE, SOFT_BLUE, "正在连接 Usage Keeper");
+        } else if (viewSnapshot.fromCache) {
+            setStatus("缓存", ORANGE, SOFT_ORANGE, "缓存范围 " + nonEmpty(viewSnapshot.cachedRangeLabel, "未知") + " · 上次更新：" + viewSnapshot.loadedAtLabel());
         } else if (viewSnapshot.online) {
             setStatus("在线", GREEN, SOFT_GREEN, "范围 " + rangeLabel(selectedRange) + " · 最近同步：" + nonEmpty(shortTime(viewSnapshot.lastRunAt), "未知") + " · 本机刷新：" + viewSnapshot.loadedAtLabel());
         } else if (viewSnapshot.hasAnyData()) {
@@ -1484,8 +1638,77 @@ public class MainActivity extends Activity {
         card.addView(msg);
     }
 
+    private void renderHealthSummary() {
+        boolean cached = viewSnapshot.fromCache;
+        boolean offline = !cached && viewSnapshot.statusLoaded && !viewSnapshot.online;
+        boolean sessionIssue = !cached && viewSnapshot.statusLoaded && !viewSnapshot.authenticated;
+        boolean reliabilityIssue = viewSnapshot.usageLoaded && viewSnapshot.totalRequests >= 5 && viewSnapshot.successRate() < 0.9d;
+        boolean endpointError = viewSnapshot.error != null && viewSnapshot.error.length() > 0;
+        boolean accountConfigured = currentManagementKey().length() > 0 && quotaUrl != null && !quotaUrl.contains("your-domain.example");
+
+        int issueCount = 0;
+        if (offline) issueCount++;
+        if (sessionIssue) issueCount++;
+        if (reliabilityIssue) issueCount++;
+        if (endpointError) issueCount++;
+        if (!accountConfigured) issueCount++;
+
+        int color;
+        int background;
+        String label;
+        String title;
+        if (cached) {
+            color = ORANGE;
+            background = SOFT_ORANGE;
+            label = "缓存数据";
+            title = "正在确认最新状态";
+        } else if (offline || sessionIssue) {
+            color = RED;
+            background = SOFT_RED;
+            label = "需要处理";
+            title = "服务或认证存在异常";
+        } else if (issueCount > 0) {
+            color = ORANGE;
+            background = SOFT_ORANGE;
+            label = issueCount + " 项关注";
+            title = "部分能力需要关注";
+        } else {
+            color = GREEN;
+            background = SOFT_GREEN;
+            label = "运行正常";
+            title = "当前没有需要处理的问题";
+        }
+
+        LinearLayout card = card();
+        card.setBackground(roundStroke(background, color, 8));
+        content.addView(card, matchWrapWithBottom(dp(12)));
+        LinearLayout top = horizontal();
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        card.addView(top);
+        top.addView(text(title, 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1));
+        top.addView(pill(label, color, Color.WHITE));
+        addKeyValue(card, "Usage Keeper", cached ? "等待在线刷新" : viewSnapshot.online ? "在线" : "离线或未知");
+        addKeyValue(card, "认证状态", cached ? "等待验证" : viewSnapshot.authenticated ? "有效" : "未确认");
+        addKeyValue(card, "请求成功率", viewSnapshot.totalRequests > 0 ? percent(viewSnapshot.successRate()) : "暂无数据");
+        addKeyValue(card, "账号服务", accountConfigured ? "已配置" : "待配置");
+        addMuted(card, cached ? "当前显示上次成功缓存，在线数据返回后会自动替换。" : "最后更新：" + viewSnapshot.loadedAtLabel());
+
+        LinearLayout actions = horizontal();
+        actions.setPadding(0, dp(10), 0, 0);
+        card.addView(actions, new LinearLayout.LayoutParams(-1, dp(44)));
+        Button account = secondaryButton("查看账号");
+        actions.addView(account, weightLp(1));
+        account.setOnClickListener(v -> { selectedTab = 1; render(); });
+        Button logs = secondaryButton(reliabilityIssue || endpointError ? "查看错误" : "查看日志");
+        LinearLayout.LayoutParams logsLp = weightLp(1);
+        logsLp.setMargins(dp(10), 0, 0, 0);
+        actions.addView(logs, logsLp);
+        logs.setOnClickListener(v -> { selectedTab = 3; logTab = 0; errorsOnly = reliabilityIssue || endpointError; render(); });
+    }
+
     private void renderDashboard() {
         LinearLayout top = card();
+        renderHealthSummary();
         content.addView(top, matchWrapWithBottom(dp(12)));
         LinearLayout row = horizontal();
         top.addView(row, new LinearLayout.LayoutParams(-1, -2));
@@ -1509,7 +1732,7 @@ public class MainActivity extends Activity {
         addKeyValue(service, "范围", rangeLabel(selectedRange));
         addKeyValue(service, "服务运行", viewSnapshot.online ? "running" : "unknown/offline");
         addKeyValue(service, "模型数量", String.valueOf(viewSnapshot.modelCount()));
-        addKeyValue(service, "凭证数量", String.valueOf(viewSnapshot.credentials.size()));
+        addKeyValue(service, "凭证数量", String.valueOf(viewSnapshot.credentialCount()));
 
         LinearLayout health = card();
         content.addView(health, matchWrapWithBottom(dp(12)));
@@ -1718,9 +1941,11 @@ public class MainActivity extends Activity {
         return "$" + twoDecimal.format(summary.estimatedCost);
     }
 
-    private void renderResources() {
-        addSegment(new String[]{"模型统计", "凭证状态"}, resourceTab, index -> { resourceTab = index; render(); });
-        if (resourceTab == 0) renderModels(); else renderCredentials();
+    private void renderUsageHub() {
+        addSegment(new String[]{"趋势成本", "模型", "凭证"}, resourceTab, index -> { resourceTab = index; render(); });
+        if (resourceTab == 0) renderStats();
+        else if (resourceTab == 1) renderModels();
+        else renderCredentials();
     }
 
     private void renderModels() {
@@ -1793,8 +2018,8 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void renderLogsAndSettings() {
-        renderLogs();
+    private void renderMoreNavigation() {
+        addSegment(new String[]{"日志", "设置"}, logTab, index -> { logTab = index; render(); });
     }
 
     private void renderLogs() {
@@ -1830,7 +2055,7 @@ public class MainActivity extends Activity {
         quotaDetail = "输入管理 Key 后可读取每个 Codex 账号的实时额度。";
         clearSecret(KEY_LOGIN_PASSWORD_ENCRYPTED, KEY_LOGIN_PASSWORD);
         clearSecret(KEY_MANAGEMENT_KEY_ENCRYPTED, KEY_MANAGEMENT_KEY);
-        boolean logoutSaved = prefs.edit().putBoolean(KEY_LOGGED_IN, false).commit();
+        boolean logoutSaved = prefs.edit().putBoolean(KEY_LOGGED_IN, false).remove(KEY_DASHBOARD_CACHE).commit();
         if (!logoutSaved) toast("退出状态未能保存，请重试");
         showLoginScreen();
     }
@@ -1924,7 +2149,7 @@ public class MainActivity extends Activity {
     }
 
     private void applyCost(DataSnapshot snapshot) {
-        if (snapshot == null) return;
+        if (snapshot == null || (snapshot.fromCache && snapshot.models.isEmpty())) return;
         double total = 0d;
         for (ModelSummary model : snapshot.models.values()) {
             PriceRule rule = priceForModel(model.name);
@@ -1952,6 +2177,79 @@ public class MainActivity extends Activity {
             }
         }
         return best;
+    }
+
+    private void loadDashboardCache() {
+        if (prefs == null) return;
+        String raw = prefs.getString(KEY_DASHBOARD_CACHE, "");
+        if (raw == null || raw.length() == 0) return;
+        try {
+            JSONObject obj = new JSONObject(raw);
+            String cachedBaseUrl = obj.optString("base_url", "");
+            if (cachedBaseUrl.length() == 0 || !normalizeBaseUrl(cachedBaseUrl).equals(normalizeBaseUrl(baseUrl))) return;
+            DataSnapshot cached = new DataSnapshot();
+            cached.baseUrl = cachedBaseUrl;
+            cached.authenticated = obj.optBoolean("authenticated", false);
+            cached.online = obj.optBoolean("online", false);
+            cached.syncRunning = obj.optBoolean("sync_running", false);
+            cached.statusLoaded = obj.optBoolean("status_loaded", true);
+            cached.usageLoaded = obj.optBoolean("usage_loaded", true);
+            cached.lastRunAt = obj.optString("last_run_at", "");
+            cached.currency = obj.optString("currency", "USD");
+            cached.totalRequests = obj.optLong("total_requests", 0L);
+            cached.successCount = obj.optLong("success_count", 0L);
+            cached.failureCount = obj.optLong("failure_count", 0L);
+            cached.totalTokens = obj.optLong("total_tokens", 0L);
+            cached.inputTokens = obj.optLong("input_tokens", 0L);
+            cached.outputTokens = obj.optLong("output_tokens", 0L);
+            cached.reasoningTokens = obj.optLong("reasoning_tokens", 0L);
+            cached.cachedTokens = obj.optLong("cached_tokens", 0L);
+            cached.avgLatencyMs = obj.optLong("avg_latency_ms", 0L);
+            cached.p95LatencyMs = obj.optLong("p95_latency_ms", 0L);
+            cached.p99LatencyMs = obj.optLong("p99_latency_ms", 0L);
+            cached.estimatedCost = obj.optDouble("estimated_cost", 0d);
+            cached.loadedAtMillis = obj.optLong("loaded_at", 0L);
+            cached.modelCountHint = obj.optInt("model_count", 0);
+            cached.credentialCountHint = obj.optInt("credential_count", 0);
+            cached.cachedRangeLabel = obj.optString("range_label", "");
+            cached.fromCache = true;
+            allSnapshot = cached;
+            viewSnapshot = cached.copySummary();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void saveDashboardCache(DataSnapshot snapshot, int range) {
+        if (prefs == null || snapshot == null || (!snapshot.usageLoaded && snapshot.totalRequests <= 0)) return;
+        JSONObject obj = new JSONObject();
+        try {
+            obj.put("base_url", baseUrl);
+            obj.put("authenticated", snapshot.authenticated);
+            obj.put("online", snapshot.online);
+            obj.put("sync_running", snapshot.syncRunning);
+            obj.put("status_loaded", snapshot.statusLoaded);
+            obj.put("usage_loaded", snapshot.usageLoaded);
+            obj.put("last_run_at", snapshot.lastRunAt);
+            obj.put("currency", snapshot.currency);
+            obj.put("total_requests", snapshot.totalRequests);
+            obj.put("success_count", snapshot.successCount);
+            obj.put("failure_count", snapshot.failureCount);
+            obj.put("total_tokens", snapshot.totalTokens);
+            obj.put("input_tokens", snapshot.inputTokens);
+            obj.put("output_tokens", snapshot.outputTokens);
+            obj.put("reasoning_tokens", snapshot.reasoningTokens);
+            obj.put("cached_tokens", snapshot.cachedTokens);
+            obj.put("avg_latency_ms", snapshot.avgLatencyMs);
+            obj.put("p95_latency_ms", snapshot.p95LatencyMs);
+            obj.put("p99_latency_ms", snapshot.p99LatencyMs);
+            obj.put("estimated_cost", snapshot.estimatedCost);
+            obj.put("loaded_at", snapshot.loadedAtMillis);
+            obj.put("model_count", snapshot.modelCount());
+            obj.put("credential_count", snapshot.credentialCount());
+            obj.put("range_label", rangeLabel(range));
+            prefs.edit().putString(KEY_DASHBOARD_CACHE, obj.toString()).apply();
+        } catch (JSONException ignored) {
+        }
     }
 
     private void loadLocalPrices() {
@@ -2094,7 +2392,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(connectTimeoutMs);
         conn.setReadTimeout(readTimeoutMs);
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3.2");
+        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.4.0");
         String password = currentLoginPassword();
         if (password.length() > 0) conn.setRequestProperty("Authorization", "Bearer " + password);
         int code = conn.getResponseCode();
@@ -2112,7 +2410,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(connectTimeoutMs);
         conn.setReadTimeout(readTimeoutMs);
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3.2");
+        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.4.0");
         if (password != null && password.trim().length() > 0) conn.setRequestProperty("Authorization", "Bearer " + password.trim());
         int code = conn.getResponseCode();
         InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
@@ -2152,7 +2450,7 @@ public class MainActivity extends Activity {
         conn.setConnectTimeout(connectTimeoutMs);
         conn.setReadTimeout(readTimeoutMs);
         conn.setRequestProperty("Accept", "application/json");
-        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.3.2");
+        conn.setRequestProperty("User-Agent", "CPAUsageAndroid/0.4.0");
         if (headers != null) for (Map.Entry<String, String> entry : headers.entrySet()) conn.setRequestProperty(entry.getKey(), entry.getValue());
         if (body != null) {
             conn.setDoOutput(true);
@@ -3256,13 +3554,17 @@ public class MainActivity extends Activity {
     private static class TrendPoint { final String label; final double value; final long count; TrendPoint(String label, double value, long count) { this.label = label == null ? "" : label; this.value = value; this.count = count; } }
     private static class HealthCell { final long startMs, endMs, total, failed; HealthCell(long startMs, long endMs, long total, long failed) { this.startMs = startMs; this.endMs = endMs; this.total = total; this.failed = failed; } double successRate() { return total <= 0 ? 0d : (total - failed) / (double) total; } }
     private class DataSnapshot {
-        String baseUrl = DEFAULT_BASE_URL, lastRunAt = "", error = "", currency = ""; boolean authenticated, online, syncRunning, statusLoaded, usageLoaded; long totalRequests, successCount, failureCount, totalTokens, inputTokens, outputTokens, reasoningTokens, cachedTokens, avgLatencyMs, p95LatencyMs, p99LatencyMs, loadedAtMillis; double estimatedCost; Map<String, ModelSummary> models = new HashMap<>(); Map<String, CredentialSummary> credentials = new HashMap<>(); Map<String, Long> dayCounts = new HashMap<>(); List<LogEntry> logs = new ArrayList<>(); List<UsageEvent> events = new ArrayList<>();
-        boolean hasAnyData() { return statusLoaded || usageLoaded || totalRequests > 0 || !models.isEmpty() || !credentials.isEmpty(); }
+        String baseUrl = DEFAULT_BASE_URL, lastRunAt = "", error = "", currency = "", cachedRangeLabel = "";
+        boolean authenticated, online, syncRunning, statusLoaded, usageLoaded, fromCache;
+        int modelCountHint, credentialCountHint;
+        long totalRequests, successCount, failureCount, totalTokens, inputTokens, outputTokens, reasoningTokens, cachedTokens, avgLatencyMs, p95LatencyMs, p99LatencyMs, loadedAtMillis; double estimatedCost; Map<String, ModelSummary> models = new HashMap<>(); Map<String, CredentialSummary> credentials = new HashMap<>(); Map<String, Long> dayCounts = new HashMap<>(); List<LogEntry> logs = new ArrayList<>(); List<UsageEvent> events = new ArrayList<>();
+        boolean hasAnyData() { return statusLoaded || usageLoaded || totalRequests > 0 || modelCount() > 0 || credentialCount() > 0; }
         double successRate() { long total = totalRequests > 0 ? totalRequests : successCount + failureCount; return total <= 0 ? 0 : successCount / (double) total; }
-        int modelCount() { return models.size(); }
+        int modelCount() { return models.isEmpty() ? modelCountHint : models.size(); }
+        int credentialCount() { return credentials.isEmpty() ? credentialCountHint : credentials.size(); }
         String costLabel() { if (estimatedCost <= 0) return "待配置"; String unit = currency == null || currency.length() == 0 ? "$" : currency + " "; return unit + twoDecimal.format(estimatedCost); }
         String loadedAtLabel() { if (loadedAtMillis <= 0) return "未刷新"; return new SimpleDateFormat("HH:mm:ss", Locale.CHINA).format(new Date(loadedAtMillis)); }
-        DataSnapshot emptyCopyMeta() { DataSnapshot out = new DataSnapshot(); out.baseUrl = baseUrl; out.authenticated = authenticated; out.online = online; out.syncRunning = syncRunning; out.statusLoaded = statusLoaded; out.usageLoaded = usageLoaded; out.lastRunAt = lastRunAt; out.error = error; out.currency = currency; out.estimatedCost = estimatedCost; out.loadedAtMillis = loadedAtMillis; return out; }
+        DataSnapshot emptyCopyMeta() { DataSnapshot out = new DataSnapshot(); out.baseUrl = baseUrl; out.authenticated = authenticated; out.online = online; out.syncRunning = syncRunning; out.statusLoaded = statusLoaded; out.usageLoaded = usageLoaded; out.lastRunAt = lastRunAt; out.error = error; out.currency = currency; out.estimatedCost = estimatedCost; out.loadedAtMillis = loadedAtMillis; out.fromCache = fromCache; out.cachedRangeLabel = cachedRangeLabel; out.modelCountHint = modelCountHint; out.credentialCountHint = credentialCountHint; return out; }
         DataSnapshot copySummary() { DataSnapshot out = emptyCopyMeta(); if (!events.isEmpty()) { for (UsageEvent e : events) out.addEvent(e); out.finalizeComputed(); } else { out.totalRequests = totalRequests; out.successCount = successCount; out.failureCount = failureCount; out.totalTokens = totalTokens; out.inputTokens = inputTokens; out.outputTokens = outputTokens; out.reasoningTokens = reasoningTokens; out.cachedTokens = cachedTokens; out.avgLatencyMs = avgLatencyMs; out.p95LatencyMs = p95LatencyMs; out.p99LatencyMs = p99LatencyMs; out.models = models; out.credentials = credentials; out.dayCounts = dayCounts; out.logs = logs; } return out; }
         void recalculateFromEventsIfNeeded() { if (events.isEmpty()) return; DataSnapshot out = copySummary(); totalRequests = out.totalRequests; successCount = out.successCount; failureCount = out.failureCount; totalTokens = out.totalTokens; inputTokens = out.inputTokens; outputTokens = out.outputTokens; reasoningTokens = out.reasoningTokens; cachedTokens = out.cachedTokens; avgLatencyMs = out.avgLatencyMs; p95LatencyMs = out.p95LatencyMs; p99LatencyMs = out.p99LatencyMs; models = out.models; credentials = out.credentials; dayCounts = out.dayCounts; logs = out.logs; }
         void addEvent(UsageEvent e) { events.add(e); totalRequests++; if (e.failed) failureCount++; else successCount++; totalTokens += e.totalTokens; inputTokens += e.inputTokens; outputTokens += e.outputTokens; reasoningTokens += e.reasoningTokens; cachedTokens += e.cachedTokens; ModelSummary m = models.get(e.model); if (m == null) { m = new ModelSummary(e.model); models.put(e.model, m); } m.add(e); CredentialSummary c = credentials.get(e.credentialId); if (c == null) { c = new CredentialSummary(); c.id = e.credentialId; c.displayName = e.credentialName; credentials.put(e.credentialId, c); } c.add(e); if (e.timestamp.length() >= 10) { String day = e.timestamp.substring(0, 10); Long old = dayCounts.get(day); dayCounts.put(day, old == null ? 1L : old + 1L); } LogEntry log = new LogEntry(); log.timestamp = e.timestamp; log.failed = e.failed; log.model = e.model; log.credential = e.credentialName; log.message = e.failed ? "请求失败" : "请求成功"; log.latencyMs = e.latencyMs; logs.add(log); }
