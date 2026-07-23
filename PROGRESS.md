@@ -91,3 +91,23 @@
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
 - Public APK release before this local work: `v0.3.2`
 - Next action: install the verified `v0.4.0` APK over `v0.3.2` and validate onboarding, cache labeling, progressive loading, and credential persistence on a real phone.
+
+## Home Assistant Household Dashboard
+
+### 2026-07-23 Redesign
+
+- Rebuilt the household dashboard around a mobile-first, status-led layout with four primary tabs: 首页、家庭地图、场景、更多.
+- Retained the existing household scenes, automatic reminders, climate, drinking-water, laundry, camera, door-lock, weather, map, and shopping-list functions.
+- Removed infrastructure, account, lottery, NAS, and computer-oriented content from the dashboard configuration.
+- Changed the visual direction to an editorial control-console theme with ink-blue navigation, signal-orange accents, compact borders, and a subtle grid background.
+- Added a prominent door-state exception card, removed the live camera feed from the home screen, added confirmation to the all-off action, and made unavailable laundry states degrade gracefully.
+- Created timestamped remote backups with label `redesign-20260723-122043` before replacement.
+
+### Verification
+
+- Home Assistant configuration check passed after restart.
+- Container returned to `running` and the local HTTP endpoint returned `200`.
+- Lovelace validation passed for 8 views, 44 entity references, and 1 local map image.
+- Deployed Lovelace and theme SHA-256 hashes matched the locally validated artifacts.
+- No Lovelace, theme, frontend, or YAML errors appeared in the post-deployment log window.
+- Direct visual browser capture could not be run because the Windows browser-control sandbox failed to initialize; structural, resource, runtime, and HTTP verification were completed instead.

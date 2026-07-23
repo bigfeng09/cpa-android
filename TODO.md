@@ -34,3 +34,5 @@
 - [x] Load lightweight status data before the full usage payload.
 - [x] Cache the last successful dashboard summary with explicit stale-range labeling.
 - [ ] Verify `v0.4.0` onboarding, progressive loading, cached startup, and same-signature upgrade on a real Android phone.
+- [x] Redesign and deploy the Home Assistant household dashboard without infrastructure, account, lottery, NAS, or computer content.
+- [ ] Optionally confirm final spacing and touch targets on the primary household phone after refreshing the Home Assistant frontend cache.
