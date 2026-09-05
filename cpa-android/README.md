@@ -20,6 +20,7 @@
 - 用量页的“模型”：按当前范围展示模型请求量、成功率、Token、输入/输出、平均耗时、最近使用时间。
 - 用量页的“凭证”：按当前范围展示脱敏 Key、请求数、成功率、Token、失败数、健康状态估算。
 - 更多页的“日志”：按当前范围展示最近事件、仅错误筛选。
+- 更多页的“AI 供应商”：查看和编辑 CLI Proxy API 的 Gemini、Codex、Claude、Vertex、OpenAI 兼容供应商配置；完整 API Key 只以脱敏占位展示。
 - `CLI Proxy API` 可在首次引导第 2 步填写，也可稍后在 `更多 > 设置` 中修改。
 - 账号页：已改为纯原生 Android 页面，不再使用 WebView 嵌套。默认账号页地址使用占位示例 `https://your-domain.example/management.html#/quota`，可以在 `更多 > 设置` 中修改。
 - 在首次引导第 2 步或 `更多 > 设置` 填写 `CLI Proxy API` 链接和 `管理 Key` 后，进入 `账号` 页面点击刷新，App 会调用对应的 `/v0/management/auth-files` 和 `/v0/management/api-call` 读取 OAuth 配额；App 顶部刷新按钮也会触发原生刷新。

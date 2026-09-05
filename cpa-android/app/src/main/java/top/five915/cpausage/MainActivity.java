@@ -1,6 +1,7 @@
 package top.five915.cpausage;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -57,6 +58,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -123,6 +125,10 @@ public class MainActivity extends Activity {
     private final Map<String, PriceRule> priceTable = new HashMap<>();
     private final List<CodexQuotaAccount> codexQuotaAccounts = new ArrayList<>();
     private final List<ApiKeyItem> apiKeyItems = new ArrayList<>();
+    private final List<AiProvider> aiProviders = new ArrayList<>();
+    private boolean providersLoading = false;
+    private String providersError = "";
+    private AiProvider editingProvider;
     private boolean quotaLoading = false;
     private String quotaStatus = "未刷新";
     private String quotaDetail = "输入管理 Key 后可读取每个 Codex 账号的实时额度。";
@@ -512,7 +518,7 @@ public class MainActivity extends Activity {
             if (selectedTab == 1) {
                 refreshQuotaAccounts();
                 refreshApiKeys();
-            }
+            } else if (selectedTab == 3 && logTab == 0) refreshProviders();
             else refreshAll();
         });
 
@@ -542,6 +548,8 @@ public class MainActivity extends Activity {
             item.setGravity(Gravity.CENTER);
             item.setOnClickListener(v -> {
                 selectedTab = index;
+                editingProvider = null;
+                if (selectedTab == 3 && logTab == 0) refreshProviders();
                 render();
             });
             navItems[i] = item;
@@ -644,9 +652,14 @@ public class MainActivity extends Activity {
         content = body;
 
         if (selectedTab == 3) renderMoreNavigation();
-        if (selectedTab == 0 || selectedTab == 2 || (selectedTab == 3 && logTab == 0)) renderRangeSelector();
-        if (selectedTab == 3 && logTab == 1) {
+        if (selectedTab == 3 && editingProvider != null) {
+            renderProviderEditor();
+        } else if (selectedTab == 0 || selectedTab == 2) {
+            renderRangeSelector();
+        } else if (selectedTab == 3 && logTab == 2) {
             renderSettings();
+        } else if (selectedTab == 3 && logTab == 0) {
+            renderProviders();
         } else if (loading && !viewSnapshot.hasAnyData()) renderLoading();
         else {
             if (viewSnapshot.error != null && viewSnapshot.error.length() > 0) renderErrorBanner();
@@ -1588,15 +1601,19 @@ public class MainActivity extends Activity {
     private void updateHeader() {
         if (headerMeta != null) {
             if (selectedTab == 1) headerMeta.setText(currentManagementApiBase());
-            else if (selectedTab == 3 && logTab == 1) headerMeta.setText("本机配置");
+            else if (selectedTab == 3 && logTab == 2) headerMeta.setText("本机配置");
             else headerMeta.setText(baseUrl);
         }
         if (selectedTab == 1) {
             setStatus("账号", BLUE, SOFT_BLUE, "CLI Proxy API 账号额度");
             return;
         }
-        if (selectedTab == 3 && logTab == 1) {
+        if (selectedTab == 3 && logTab == 2) {
             setStatus("设置", BLUE, SOFT_BLUE, "CPA Usage Keeper 与 CLI Proxy API");
+            return;
+        }
+        if (selectedTab == 3 && logTab == 0) {
+            setStatus("AI 供应商", BLUE, SOFT_BLUE, "CLI Proxy API 上游模型路由");
             return;
         }
         if (loading) {
@@ -2019,7 +2036,404 @@ public class MainActivity extends Activity {
     }
 
     private void renderMoreNavigation() {
-        addSegment(new String[]{"日志", "设置"}, logTab, index -> { logTab = index; render(); });
+        addSegment(new String[]{"AI 供应商", "日志", "设置"}, logTab, index -> {
+            logTab = index;
+            editingProvider = null;
+            render();
+            if (index == 0) refreshProviders();
+        });
+    }
+
+    private void renderProviders() {
+        addSectionTitle("AI 供应商", "查看和编辑 CLI Proxy API 的上游模型配置");
+        LinearLayout actions = horizontal();
+        content.addView(actions, matchWrapWithBottom(dp(10)));
+        Button refresh = primaryButton("刷新供应商");
+        actions.addView(refresh, weightLp(1));
+        refresh.setOnClickListener(v -> refreshProviders());
+        if (providersError.length() > 0) {
+            TextView error = text(providersError, 13, RED, Typeface.NORMAL);
+            error.setBackground(roundStroke(SOFT_RED, RED, 8));
+            error.setPadding(dp(12), dp(10), dp(12), dp(10));
+            content.addView(error, matchWrapWithBottom(dp(10)));
+        }
+        if (providersLoading && aiProviders.isEmpty()) {
+            addEmptyCard("正在读取供应商配置...");
+            return;
+        }
+        if (aiProviders.isEmpty()) {
+            LinearLayout empty = card();
+            content.addView(empty, matchWrapWithBottom(dp(12)));
+            addEmpty(empty, "暂无已配置的 AI 供应商");
+            addMuted(empty, "请先在 CLI Proxy API 管理中心添加供应商，再点击刷新。");
+            return;
+        }
+        for (AiProvider provider : aiProviders) {
+            LinearLayout item = card();
+            content.addView(item, matchWrapWithBottom(dp(10)));
+            LinearLayout title = horizontal();
+            title.setGravity(Gravity.CENTER_VERTICAL);
+            item.addView(title);
+            title.addView(text(provider.displayName(), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1));
+            title.addView(pill(provider.typeLabel, provider.isOpenAiCompatible() ? BLUE : GREEN, provider.isOpenAiCompatible() ? SOFT_BLUE : SOFT_GREEN));
+            addKeyValue(item, "Base URL", provider.baseUrl.length() == 0 ? "未配置" : provider.baseUrl);
+            addKeyValue(item, "前缀 / 优先级", nonEmpty(provider.prefix, "无") + " / " + provider.priorityLabel());
+            addKeyValue(item, "API Key", provider.apiKeyEntries.size() + " 个（仅显示脱敏值）");
+            addKeyValue(item, "模型", provider.models.size() + " 个");
+            if (!provider.models.isEmpty()) addMuted(item, joinProviderModels(provider.models));
+            LinearLayout row = horizontal();
+            row.setPadding(0, dp(12), 0, 0);
+            item.addView(row);
+            Button edit = primaryButton("查看 / 编辑");
+            row.addView(edit, weightLp(1));
+            edit.setOnClickListener(v -> { editingProvider = provider.copy(); render(); });
+            Button delete = secondaryButton("删除");
+            LinearLayout.LayoutParams deleteLp = weightLp(1);
+            deleteLp.setMargins(dp(10), 0, 0, 0);
+            row.addView(delete, deleteLp);
+            delete.setOnClickListener(v -> confirmDeleteProvider(provider));
+        }
+    }
+
+    private String joinProviderModels(List<ProviderModel> models) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < models.size() && i < 5; i++) {
+            if (i > 0) out.append("、");
+            ProviderModel model = models.get(i);
+            out.append(model.name);
+            if (model.alias.length() > 0) out.append(" → ").append(model.alias);
+        }
+        if (models.size() > 5) out.append(" 等 ").append(models.size()).append(" 个");
+        return out.toString();
+    }
+
+    private void renderProviderEditor() {
+        AiProvider provider = editingProvider;
+        if (provider == null) return;
+        addSectionTitle("编辑 AI 供应商", provider.isOpenAiCompatible() ? "OpenAI 兼容供应商" : provider.typeLabel + " 配置");
+        LinearLayout form = card();
+        content.addView(form, matchWrapWithBottom(dp(12)));
+        EditText name = labeledInput(form, "供应商名称", provider.name, "供应商名称");
+        if (!provider.isOpenAiCompatible()) {
+            name.setEnabled(false);
+            addMuted(form, "此类型的名称由 CLI Proxy API 管理中心决定，保存时不会修改名称。");
+        }
+        EditText base = labeledInput(form, "Base URL", provider.baseUrl, "https://api.example.com");
+        EditText prefix = labeledInput(form, "前缀（可选）", provider.prefix, "例如：provider");
+        EditText priority = labeledInput(form, "优先级（可选）", provider.priority == Integer.MIN_VALUE ? "" : provider.priorityLabel(), "0");
+        priority.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        addMuted(form, "优先级数值越大越优先；留空表示默认 0。");
+
+        addEditorTitle(form, "模型列表", "每行一个，格式为：模型名 或 模型名,别名");
+        EditText models = multilineInput(provider.modelsText());
+        form.addView(models, new LinearLayout.LayoutParams(-1, dp(132)));
+
+        addEditorTitle(form, "自定义请求头", "每行一个，格式为：Header: Value");
+        EditText headers = multilineInput(provider.headersText());
+        form.addView(headers, new LinearLayout.LayoutParams(-1, dp(110)));
+
+        addEditorTitle(form, "API Key 列表", "完整密钥不会回显；留空表示保留原值");
+        LinearLayout keyContainer = vertical();
+        form.addView(keyContainer, new LinearLayout.LayoutParams(-1, -2));
+        List<EditText> keyInputs = new ArrayList<>();
+        List<EditText> proxyInputs = new ArrayList<>();
+        List<ProviderKey> keySources = new ArrayList<>();
+        for (ProviderKey key : provider.apiKeyEntries) addProviderKeyRow(keyContainer, key, keyInputs, proxyInputs, keySources);
+        Button addKey = secondaryButton("添加 API Key");
+        form.addView(addKey, matchWrapWithBottom(dp(4)));
+        addKey.setOnClickListener(v -> addProviderKeyRow(keyContainer, new ProviderKey(), keyInputs, proxyInputs, keySources));
+
+        LinearLayout buttons = horizontal();
+        content.addView(buttons, matchWrapWithBottom(dp(12)));
+        Button back = secondaryButton("返回列表");
+        buttons.addView(back, weightLp(1));
+        back.setOnClickListener(v -> { hideKeyboard(name); editingProvider = null; render(); });
+        Button save = primaryButton("保存供应商");
+        LinearLayout.LayoutParams saveLp = weightLp(1);
+        saveLp.setMargins(dp(10), 0, 0, 0);
+        buttons.addView(save, saveLp);
+        save.setOnClickListener(v -> saveProvider(provider, name, base, prefix, priority, models, headers, keyInputs, proxyInputs, keySources, save));
+    }
+
+    private EditText labeledInput(LinearLayout parent, String label, String value, String hint) {
+        TextView title = text(label, 13, MUTED, Typeface.BOLD);
+        title.setPadding(0, dp(4), 0, dp(6));
+        parent.addView(title);
+        EditText input = input(value);
+        input.setHint(hint);
+        parent.addView(input, new LinearLayout.LayoutParams(-1, dp(48)));
+        return input;
+    }
+
+    private EditText multilineInput(String value) {
+        EditText input = input(value);
+        input.setSingleLine(false);
+        input.setGravity(Gravity.TOP | Gravity.START);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        return input;
+    }
+
+    private void addEditorTitle(LinearLayout parent, String title, String note) {
+        TextView view = text(title, 15, TEXT, Typeface.BOLD);
+        view.setPadding(0, dp(16), 0, dp(2));
+        parent.addView(view);
+        addMuted(parent, note);
+    }
+
+    private void addProviderKeyRow(LinearLayout parent, ProviderKey key, List<EditText> keyInputs, List<EditText> proxyInputs, List<ProviderKey> keySources) {
+        LinearLayout row = vertical();
+        row.setPadding(0, dp(8), 0, 0);
+        parent.addView(row);
+        EditText value = passwordInput("");
+        value.setHint(key.apiKey.length() == 0 ? "输入新的 API Key" : maskApiKey(key.apiKey) + "（留空保留）");
+        row.addView(value, new LinearLayout.LayoutParams(-1, dp(46)));
+        EditText proxy = input(key.proxyUrl);
+        proxy.setHint("代理地址（可选）");
+        LinearLayout.LayoutParams proxyLp = new LinearLayout.LayoutParams(-1, dp(46));
+        proxyLp.setMargins(0, dp(6), 0, 0);
+        row.addView(proxy, proxyLp);
+        keyInputs.add(value);
+        proxyInputs.add(proxy);
+        keySources.add(key);
+        Button remove = secondaryButton("移除这一项");
+        LinearLayout.LayoutParams removeLp = new LinearLayout.LayoutParams(-1, dp(40));
+        removeLp.setMargins(0, dp(6), 0, 0);
+        row.addView(remove, removeLp);
+        remove.setOnClickListener(v -> { int index = keyInputs.indexOf(value); if (index >= 0) { keyInputs.remove(index); proxyInputs.remove(index); keySources.remove(index); } parent.removeView(row); });
+    }
+
+    private void refreshProviders() {
+        if (providersLoading) return;
+        if (currentManagementKey().length() == 0) {
+            providersError = "请先在“更多 > 设置”中填写 Management Key。";
+            render();
+            return;
+        }
+        providersLoading = true;
+        providersError = "";
+        render();
+        executor.execute(() -> {
+            try {
+                String body = null;
+                Exception last = null;
+                for (String candidate : managementApiBaseCandidates()) {
+                    try { body = request("GET", candidate + "/config", null, managementHeaders(), 10000, 25000); break; }
+                    catch (Exception e) { last = e; }
+                }
+                if (body == null) throw last == null ? new IOException("无法读取供应商配置") : last;
+                List<AiProvider> parsed = parseAiProviders(body);
+                runOnUiThread(() -> { aiProviders.clear(); aiProviders.addAll(parsed); providersLoading = false; render(); });
+            } catch (Exception e) {
+                runOnUiThread(() -> { providersLoading = false; providersError = "读取失败：" + cleanError(e); render(); });
+            }
+        });
+    }
+
+    private List<AiProvider> parseAiProviders(String body) throws JSONException {
+        JSONObject root = asObject(body);
+        if (root == null) throw new JSONException("供应商配置返回格式无法解析");
+        List<AiProvider> out = new ArrayList<>();
+        parseProviderArray(out, root.opt("gemini-api-key"), "gemini", "Gemini");
+        parseProviderArray(out, root.opt("codex-api-key"), "codex", "Codex");
+        parseProviderArray(out, root.opt("claude-api-key"), "claude", "Claude");
+        parseProviderArray(out, root.opt("vertex-api-key"), "vertex", "Vertex");
+        parseProviderArray(out, root.opt("openai-compatibility"), "openai", "OpenAI 兼容");
+        return out;
+    }
+
+    private void parseProviderArray(List<AiProvider> out, Object raw, String type, String label) {
+        if (raw instanceof JSONArray) {
+            JSONArray array = (JSONArray) raw;
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject obj = array.optJSONObject(i);
+                if (obj == null && array.opt(i) instanceof String) {
+                    obj = new JSONObject();
+                    try { obj.put("api-key", array.optString(i, "")); } catch (Exception ignored) {}
+                }
+                if (obj != null) out.add(parseProvider(obj, type, label, i));
+            }
+        } else if (raw instanceof JSONObject) {
+            out.add(parseProvider((JSONObject) raw, type, label, 0));
+        }
+    }
+
+    private AiProvider parseProvider(JSONObject obj, String type, String label, int index) {
+        AiProvider provider = new AiProvider();
+        try { provider.raw = new JSONObject(obj.toString()); } catch (Exception ignored) { provider.raw = new JSONObject(); }
+        provider.type = type;
+        provider.typeLabel = label;
+        provider.originalIndex = index;
+        provider.name = firstNonEmpty(obj.optString("name", ""), label + " " + (index + 1));
+        provider.baseUrl = firstNonEmpty(obj.optString("base-url", ""), obj.optString("baseUrl", ""));
+        provider.prefix = obj.optString("prefix", "");
+        provider.priority = parsePriority(obj.opt("priority"));
+        provider.testModel = firstNonEmpty(obj.optString("test-model", ""), obj.optString("testModel", ""));
+        parseProviderModels(provider, obj.opt("models"));
+        parseProviderHeaders(provider, obj.opt("headers"));
+        Object keyEntries = obj.opt("api-key-entries");
+        if (keyEntries instanceof JSONArray) {
+            JSONArray keys = (JSONArray) keyEntries;
+            for (int i = 0; i < keys.length(); i++) {
+                JSONObject key = keys.optJSONObject(i);
+                if (key != null) provider.apiKeyEntries.add(parseProviderKey(key));
+                else if (keys.optString(i, "").length() > 0) provider.apiKeyEntries.add(new ProviderKey(keys.optString(i, ""), ""));
+            }
+        } else {
+            String apiKey = obj.optString("api-key", "");
+            if (apiKey.length() > 0) provider.apiKeyEntries.add(new ProviderKey(apiKey, obj.optString("proxy-url", "")));
+        }
+        return provider;
+    }
+
+    private int parsePriority(Object value) {
+        if (value == null) return Integer.MIN_VALUE;
+        try { return Integer.parseInt(String.valueOf(value)); } catch (Exception ignored) { return Integer.MIN_VALUE; }
+    }
+
+    private ProviderKey parseProviderKey(JSONObject obj) {
+        return new ProviderKey(obj.optString("api-key", ""), obj.optString("proxy-url", ""));
+    }
+
+    private void parseProviderModels(AiProvider provider, Object raw) {
+        if (!(raw instanceof JSONArray)) return;
+        JSONArray models = (JSONArray) raw;
+        for (int i = 0; i < models.length(); i++) {
+            JSONObject obj = models.optJSONObject(i);
+            if (obj != null) provider.models.add(new ProviderModel(obj.optString("name", ""), obj.optString("alias", "")));
+            else {
+                String value = models.optString(i, "").trim();
+                if (value.length() > 0) provider.models.add(new ProviderModel(value, ""));
+            }
+        }
+    }
+
+    private void parseProviderHeaders(AiProvider provider, Object raw) {
+        if (raw instanceof JSONObject) {
+            JSONObject headers = (JSONObject) raw;
+            Iterator<String> keys = headers.keys();
+            while (keys.hasNext()) { String key = keys.next(); provider.headers.put(key, headers.optString(key, "")); }
+        }
+    }
+
+    private void saveProvider(AiProvider provider, EditText name, EditText base, EditText prefix, EditText priority, EditText models, EditText headers, List<EditText> keyInputs, List<EditText> proxyInputs, List<ProviderKey> keySources, Button save) {
+        String providerName = name.getText().toString().trim();
+        String baseUrlValue = base.getText().toString().trim();
+        if (providerName.length() == 0 || (provider.isOpenAiCompatible() && baseUrlValue.length() == 0)) { toast(provider.isOpenAiCompatible() ? "供应商名称和 Base URL 不能为空" : "供应商名称不能为空"); return; }
+        AiProvider updated = provider.copy();
+        updated.name = providerName;
+        updated.baseUrl = baseUrlValue;
+        updated.prefix = prefix.getText().toString().trim();
+        String priorityValue = priority.getText().toString().trim();
+        updated.priority = priorityValue.length() == 0 ? Integer.MIN_VALUE : parsePriority(priorityValue);
+        updated.models = parseModelText(models.getText().toString());
+        updated.headers = parseHeaderText(headers.getText().toString());
+        List<ProviderKey> updatedKeys = new ArrayList<>();
+        for (int i = 0; i < keyInputs.size(); i++) {
+            String typed = keyInputs.get(i).getText().toString().trim();
+            String original = i < keySources.size() ? keySources.get(i).apiKey : "";
+            String keyValue = typed.length() == 0 ? original : typed;
+            if (keyValue.length() > 0) updatedKeys.add(new ProviderKey(keyValue, proxyInputs.get(i).getText().toString().trim()));
+        }
+        updated.apiKeyEntries = updatedKeys;
+        save.setEnabled(false);
+        executor.execute(() -> {
+            try { saveProviderToServer(provider, updated); runOnUiThread(() -> { editingProvider = null; providersError = ""; toast("供应商已保存"); refreshProviders(); }); }
+            catch (Exception e) { runOnUiThread(() -> { save.setEnabled(true); toast("保存失败：" + cleanError(e)); }); }
+        });
+    }
+
+    private List<ProviderModel> parseModelText(String value) {
+        List<ProviderModel> out = new ArrayList<>();
+        for (String line : value.split("\\r?\\n")) {
+            String[] parts = line.split(",", 2);
+            String model = parts[0].trim();
+            if (model.length() > 0) out.add(new ProviderModel(model, parts.length > 1 ? parts[1].trim() : ""));
+        }
+        return out;
+    }
+
+    private Map<String, String> parseHeaderText(String value) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (String line : value.split("\\r?\\n")) {
+            int colon = line.indexOf(':');
+            if (colon > 0) out.put(line.substring(0, colon).trim(), line.substring(colon + 1).trim());
+        }
+        return out;
+    }
+
+    private void saveProviderToServer(AiProvider original, AiProvider updated) throws Exception {
+        for (String candidate : managementApiBaseCandidates()) {
+            try {
+                JSONObject root = new JSONObject(request("GET", candidate + "/config", null, managementHeaders(), 10000, 25000));
+                JSONArray array = providerConfigArray(root, updated.type);
+                JSONObject payload = providerPayload(updated);
+                int index = original.originalIndex;
+                if (index < array.length()) array.put(index, payload); else array.put(payload);
+                request("PUT", candidate + "/" + providerEndpoint(updated.type), wrapConfig(updated.type, array), managementHeaders(), 10000, 25000);
+                return;
+            } catch (Exception e) { if (candidate.equals(managementApiBaseCandidates().get(managementApiBaseCandidates().size() - 1))) throw e; }
+        }
+    }
+
+    private String providerEndpoint(String type) { return "openai".equals(type) ? "openai-compatibility" : type + "-api-key"; }
+
+    private JSONArray providerConfigArray(JSONObject root, String type) {
+        Object raw = root.opt(providerEndpoint(type));
+        if (raw instanceof JSONArray) return (JSONArray) raw;
+        JSONArray array = new JSONArray();
+        if (raw instanceof JSONObject) array.put(raw);
+        return array;
+    }
+
+    private String wrapConfig(String type, JSONArray array) { return array.toString(); }
+
+    private JSONObject providerPayload(AiProvider provider) throws JSONException {
+        JSONObject obj = provider.raw == null ? new JSONObject() : new JSONObject(provider.raw.toString());
+        boolean usesKeyEntries = provider.isOpenAiCompatible() || provider.raw.has("api-key-entries");
+        if (provider.isOpenAiCompatible()) obj.put("name", provider.name);
+        if (provider.baseUrl.length() > 0) obj.put("base-url", provider.baseUrl); else obj.remove("base-url");
+        if (!provider.isOpenAiCompatible() && !usesKeyEntries) {
+            if (!provider.apiKeyEntries.isEmpty()) {
+                obj.put("api-key", provider.apiKeyEntries.get(0).apiKey);
+                if (provider.apiKeyEntries.get(0).proxyUrl.length() > 0) obj.put("proxy-url", provider.apiKeyEntries.get(0).proxyUrl);
+                else obj.remove("proxy-url");
+            } else {
+                obj.remove("api-key");
+                obj.remove("proxy-url");
+            }
+        }
+        if (provider.prefix.length() > 0) obj.put("prefix", provider.prefix); else obj.remove("prefix");
+        if (provider.priority != Integer.MIN_VALUE) obj.put("priority", provider.priority); else obj.remove("priority");
+        JSONArray models = new JSONArray();
+        for (ProviderModel model : provider.models) { JSONObject m = new JSONObject(); m.put("name", model.name); if (model.alias.length() > 0) m.put("alias", model.alias); models.put(m); }
+        obj.put("models", models);
+        JSONObject h = new JSONObject(); for (Map.Entry<String, String> e : provider.headers.entrySet()) h.put(e.getKey(), e.getValue()); obj.put("headers", h);
+        if (usesKeyEntries) {
+            obj.remove("api-key");
+            obj.remove("proxy-url");
+            JSONArray keys = new JSONArray();
+            for (ProviderKey key : provider.apiKeyEntries) { JSONObject k = new JSONObject(); k.put("api-key", key.apiKey); if (key.proxyUrl.length() > 0) k.put("proxy-url", key.proxyUrl); keys.put(k); }
+            obj.put("api-key-entries", keys);
+        }
+        return obj;
+    }
+
+    private void confirmDeleteProvider(AiProvider provider) {
+        new AlertDialog.Builder(this).setTitle("删除供应商").setMessage("确定删除“" + provider.displayName() + "”？此操作会修改服务器配置。")
+                .setNegativeButton("取消", null).setPositiveButton("删除", (dialog, which) -> deleteProvider(provider)).show();
+    }
+
+    private void deleteProvider(AiProvider provider) {
+        executor.execute(() -> {
+            try {
+                String path = provider.isOpenAiCompatible() ? "/openai-compatibility?name=" + Uri.encode(provider.name) : "/" + providerEndpoint(provider.type) + "?api-key=" + Uri.encode(provider.apiKeyEntries.isEmpty() ? "" : provider.apiKeyEntries.get(0).apiKey) + "&base-url=" + Uri.encode(provider.baseUrl);
+                Exception last = null;
+                for (String candidate : managementApiBaseCandidates()) { try { request("DELETE", candidate + path, null, managementHeaders(), 10000, 25000); last = null; break; } catch (Exception e) { last = e; } }
+                if (last != null) throw last;
+                runOnUiThread(() -> { toast("供应商已删除"); refreshProviders(); });
+            } catch (Exception e) { runOnUiThread(() -> toast("删除失败：" + cleanError(e))); }
+        });
     }
 
     private void renderLogs() {
@@ -3572,6 +3986,29 @@ public class MainActivity extends Activity {
     }
     private static class UsageEvent { String timestamp = "", model = "", credentialId = "", credentialName = ""; long epochMs, latencyMs, totalTokens, inputTokens, outputTokens, reasoningTokens, cachedTokens; boolean failed; }
     private static class ApiKeyItem { String id = "", name = "", value = "", createdAt = ""; int index = -1; }
+    private static class ProviderKey {
+        String apiKey = "", proxyUrl = "";
+        ProviderKey() {}
+        ProviderKey(String apiKey, String proxyUrl) { this.apiKey = apiKey == null ? "" : apiKey; this.proxyUrl = proxyUrl == null ? "" : proxyUrl; }
+    }
+    private static class ProviderModel {
+        String name = "", alias = "";
+        ProviderModel(String name, String alias) { this.name = name == null ? "" : name.trim(); this.alias = alias == null ? "" : alias.trim(); }
+    }
+    private static class AiProvider {
+        String type = "", typeLabel = "", name = "", baseUrl = "", prefix = "", testModel = "";
+        JSONObject raw = new JSONObject();
+        int originalIndex = 0, priority = Integer.MIN_VALUE;
+        List<ProviderKey> apiKeyEntries = new ArrayList<>();
+        List<ProviderModel> models = new ArrayList<>();
+        Map<String, String> headers = new LinkedHashMap<>();
+        boolean isOpenAiCompatible() { return "openai".equals(type); }
+        String displayName() { return name.length() == 0 ? typeLabel : name; }
+        String priorityLabel() { return priority == Integer.MIN_VALUE ? "默认" : String.valueOf(priority); }
+        String modelsText() { StringBuilder out = new StringBuilder(); for (ProviderModel model : models) { if (out.length() > 0) out.append('\n'); out.append(model.name); if (model.alias.length() > 0) out.append(',').append(model.alias); } return out.toString(); }
+        String headersText() { StringBuilder out = new StringBuilder(); for (Map.Entry<String, String> entry : headers.entrySet()) { if (out.length() > 0) out.append('\n'); out.append(entry.getKey()).append(": ").append(entry.getValue()); } return out.toString(); }
+        AiProvider copy() { AiProvider out = new AiProvider(); out.type = type; out.typeLabel = typeLabel; out.name = name; out.baseUrl = baseUrl; out.prefix = prefix; out.testModel = testModel; out.originalIndex = originalIndex; out.priority = priority; try { out.raw = raw == null ? new JSONObject() : new JSONObject(raw.toString()); } catch (Exception ignored) { out.raw = new JSONObject(); } for (ProviderKey key : apiKeyEntries) out.apiKeyEntries.add(new ProviderKey(key.apiKey, key.proxyUrl)); for (ProviderModel model : models) out.models.add(new ProviderModel(model.name, model.alias)); out.headers.putAll(headers); return out; }
+    }
     private static class ApiCallResponse { final int statusCode; final String body; ApiCallResponse(int statusCode, String body) { this.statusCode = statusCode; this.body = body == null ? "" : body; } }
     private static class CodexQuotaAccount {
         String name = "Codex 账号", authIndex = "", statusName = "", managementApiBase = "", planType = "", subscriptionActiveUntil = "", chatgptAccountId = "", error = "", resetCreditsError = "", rawSummary = "", lastActionMessage = "";
