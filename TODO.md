@@ -1,38 +1,15 @@
 # TODO
 
-- [x] Build the native Android MVP APK.
-- [x] Run source privacy scan.
-- [x] Remove hardcoded private endpoint examples and local paths from tracked source/docs.
-- [x] Rebuild APK from sanitized source.
-- [x] Run APK privacy scan.
-- [x] Rewrite `master` to the sanitized CPA Android tree.
-- [x] Force-push sanitized `master` to GitHub.
-- [x] Delete the old APK release/tag that was built before cleanup.
-- [x] Change the GitHub repository visibility to `public`.
-- [x] Publish a replacement sanitized APK release.
+This file is an index of outstanding, actionable work across the projects in this working directory. Completed implementation and release history stays in `PROGRESS.md` and release notes; it is not repeated here.
+
+## CPA Android
 - [ ] Install and test the latest APK on a real Android phone.
 - [ ] Verify user-configured CPA Usage Keeper HTTP/HTTPS connection.
 - [ ] Verify user-configured CLI Proxy API quota/account refresh.
 - [ ] Verify Codex OAuth authorization link, callback URL submission, and post-login account refresh.
 - [ ] Add backend-side paginated/aggregated endpoints for large usage/log datasets if mobile parsing is too slow.
-- [x] Move stored password / management key to Android Keystore-backed encrypted storage.
-- [x] Preserve saved connection and credentials across normal app restarts and same-signature APK upgrades.
-- [x] Separate the CPA Usage Keeper password from the CLI Proxy API management key.
-- [x] Add a real logout flow that clears both encrypted credentials.
-- [x] Add URL normalization unit tests and make Android Lint pass with zero issues.
-- [x] Add GitHub Actions verification for unit tests, lint, and debug APK assembly.
-- [x] Simplify pricing to one shared editor with a model selector and add all-model/single-model cost filtering.
-- [x] Sync Android price edits to CPA Usage Keeper and treat server pricing as the source of truth.
-- [x] Publish a fresh `v0.2.0` APK release from the latest verified source.
-- [x] Add Codex authentication file enable/disable controls to the account page.
-- [x] Fix the 1%-used quota parsing regression and retain the last valid quota on transient refresh failures.
 - [ ] Verify authentication file enable/disable and quota refresh behavior against a live CLI Proxy API instance.
-- [x] Add two-step onboarding for Usage Keeper and optional CLI Proxy API setup.
-- [x] Validate the Usage Keeper endpoint before saving and proceeding from onboarding.
-- [x] Consolidate the app into four bottom tabs: overview, accounts, usage, and more.
-- [x] Add a health-first overview and direct problem-resolution actions.
-- [x] Load lightweight status data before the full usage payload.
-- [x] Cache the last successful dashboard summary with explicit stale-range labeling.
 - [ ] Verify `v0.4.0` onboarding, progressive loading, cached startup, and same-signature upgrade on a real Android phone.
-- [x] Redesign and deploy the Home Assistant household dashboard without infrastructure, account, lottery, NAS, or computer content.
+
+## Home Assistant
 - [ ] Optionally confirm final spacing and touch targets on the primary household phone after refreshing the Home Assistant frontend cache.

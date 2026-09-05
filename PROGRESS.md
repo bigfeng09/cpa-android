@@ -1,5 +1,12 @@
 # Progress
 
+## Documentation and workflow rules
+
+- Root workflow rules are defined in `AGENTS.md` and are risk- and task-triggered.
+- `TODO.md` contains only outstanding actionable work; completed implementation and release history remains in this file and in release notes.
+- This root repository currently contains multiple project copies and generated/local workspaces. Root Git publication must exclude unrelated untracked content.
+- Verification records below are historical evidence for the listed work. A new change must record its own relevant verification when handing off or releasing; historical full-build results do not automatically validate unrelated future changes.
+
 ## CPA Usage Android App MVP
 
 ### Current State
