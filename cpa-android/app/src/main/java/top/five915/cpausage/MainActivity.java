@@ -2075,7 +2075,7 @@ public class MainActivity extends Activity {
             title.setGravity(Gravity.CENTER_VERTICAL);
             item.addView(title);
             title.addView(text(provider.displayName(), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1));
-            title.addView(pill(provider.typeLabel(), provider.isOpenAiCompatible() ? BLUE : GREEN, provider.isOpenAiCompatible() ? SOFT_BLUE : SOFT_GREEN));
+            title.addView(pill(provider.typeLabel, provider.isOpenAiCompatible() ? BLUE : GREEN, provider.isOpenAiCompatible() ? SOFT_BLUE : SOFT_GREEN));
             addKeyValue(item, "Base URL", provider.baseUrl.length() == 0 ? "未配置" : provider.baseUrl);
             addKeyValue(item, "前缀 / 优先级", nonEmpty(provider.prefix, "无") + " / " + provider.priorityLabel());
             addKeyValue(item, "API Key", provider.apiKeyEntries.size() + " 个（仅显示脱敏值）");
@@ -2110,7 +2110,7 @@ public class MainActivity extends Activity {
     private void renderProviderEditor() {
         AiProvider provider = editingProvider;
         if (provider == null) return;
-        addSectionTitle("编辑 AI 供应商", provider.isOpenAiCompatible() ? "OpenAI 兼容供应商" : provider.typeLabel() + " 配置");
+        addSectionTitle("编辑 AI 供应商", provider.isOpenAiCompatible() ? "OpenAI 兼容供应商" : provider.typeLabel + " 配置");
         LinearLayout form = card();
         content.addView(form, matchWrapWithBottom(dp(12)));
         EditText name = labeledInput(form, "供应商名称", provider.name, "供应商名称");
