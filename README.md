@@ -53,6 +53,8 @@ App 中保存模型价格时，会通过 `/api/v1/pricing/{model}` 写回 CPA Us
 - 上次成功总览会轻量缓存在本机；离线或慢网络下会明确标记为“缓存”，不会冒充当前在线状态。
 - Android 和网页端共用服务端价格表，任一端保存后，另一端刷新即可同步。
 
+更多 > AI 供应商可读取 CLI Proxy API 管理中心的 Gemini、Codex、Claude、Vertex 和 OpenAI 兼容供应商配置。支持查看和编辑 Base URL、前缀、优先级、模型别名、自定义请求头、API Key 代理地址，并支持删除供应商。完整 API Key 不会展示在页面上，编辑已有密钥时留空即可保留原值。
+
 ## 项目目录
 
 - Android 项目：`cpa-android`

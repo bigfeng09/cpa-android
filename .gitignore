@@ -2,6 +2,7 @@
 .gradle/
 build/
 **/.gradle/
+**/.gradle-user/
 **/build/
 outputs/
 
