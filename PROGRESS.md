@@ -69,7 +69,7 @@
 
 ### Verification
 
-- Local `testDebugUnitTest lintDebug assembleDebug --no-daemon` could not start because Gradle reported `Unable to establish loopback connection`. GitHub Actions must verify this update before a release is published.
+- Local `testDebugUnitTest lintDebug assembleDebug --no-daemon` could not start because Gradle reported `Unable to establish loopback connection`. GitHub Actions verification run `34008180563` and release run `34008986723` passed these tasks for commit `9d3578a`, including the rendering regression tests.
 - Real-device verification remains pending; no Android device is connected.
 - Ran from repository root:
   - `rg -n -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|legacy-project-name' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
@@ -100,9 +100,13 @@
 - Current branch: `master`
 - Current source version: `0.5.1` (`versionCode 9`)
 - Repository visibility: `public`
+- `v0.5.1` source commit `9d3578a` was pushed successfully; GitHub Actions test, lint, and APK build passed.
+- Published Release: `v0.5.1`; APK asset is `cpa-android-v0.5.1-debug.apk` and is a Debug test build.
+- Downloaded and verified the release APK: package `top.five915.cpausage`, version `0.5.1` / `9`, 120523 bytes, SHA-256 `7b63835ce1c190fae6275385831aa231f5b041a99ffe508391b55ebdad4a9573`.
+- Its Debug signer differs from `v0.5.0`, so an in-place upgrade is not supported. Preserve the previous app and connection settings until a migration is arranged.
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
 - Public APK release before this local work: `v0.3.2`
-- Next action: verify `v0.5.1` in GitHub Actions, publish the tested APK, and validate overview/usage content on a real phone. Check signer compatibility before suggesting an in-place upgrade.
+- Next action: arrange a settings-preserving migration, then validate `v0.5.1` overview/usage content on a real Android phone; no Android device is connected to this PC.
 
 ## Home Assistant Household Dashboard
 
