@@ -9,7 +9,7 @@ This file is an index of outstanding, actionable work across the projects in thi
 - [ ] Verify Codex OAuth authorization link, callback URL submission, and post-login account refresh.
 - [ ] Add backend-side paginated/aggregated endpoints for large usage/log datasets if mobile parsing is too slow.
 - [ ] Verify authentication file enable/disable and quota refresh behavior against a live CLI Proxy API instance.
-- [ ] Verify `v0.4.0` onboarding, progressive loading, cached startup, and same-signature upgrade on a real Android phone.
+- [ ] Verify `v0.5.1` overview/usage rendering, progressive loading, cached startup, and upgrade compatibility on a real Android phone.
 
 ## Home Assistant
 - [ ] Optionally confirm final spacing and touch targets on the primary household phone after refreshing the Home Assistant frontend cache.

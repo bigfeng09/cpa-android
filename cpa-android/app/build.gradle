@@ -8,18 +8,23 @@ android {
         applicationId 'top.five915.cpausage'
         minSdk 23
         targetSdk 36
-        versionCode 8
-        versionName '0.5.0'
+        versionCode 9
+        versionName '0.5.1'
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
 }
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16'
 }
 
 tasks.withType(JavaCompile).configureEach {

@@ -651,11 +651,10 @@ public class MainActivity extends Activity {
         LinearLayout old = content;
         content = body;
 
+        if (selectedTab == 0 || selectedTab == 2) renderRangeSelector();
         if (selectedTab == 3) renderMoreNavigation();
         if (selectedTab == 3 && editingProvider != null) {
             renderProviderEditor();
-        } else if (selectedTab == 0 || selectedTab == 2) {
-            renderRangeSelector();
         } else if (selectedTab == 3 && logTab == 2) {
             renderSettings();
         } else if (selectedTab == 3 && logTab == 0) {

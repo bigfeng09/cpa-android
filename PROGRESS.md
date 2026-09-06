@@ -20,6 +20,9 @@
 - Local secrets, API keys, passwords, build outputs, APK files, and machine-specific SDK config are excluded from Git.
 
 ### Latest Fixes
+- Fixed the overview and usage rendering branches: the range selector no longer prevents page content, loading indicators, and errors from rendering.
+- Added nine Robolectric rendering regression tests for actual metrics, model/credential empty states, tab/range changes, loading, errors, and cached refresh.
+- Updated the app to `v0.5.1` (`versionCode 9`).
 - Productized the app as `v0.4.0` (`versionCode 7`) with a four-tab `总览 / 账号 / 用量 / 更多` information architecture.
 - Added a two-step onboarding flow for Usage Keeper and optional CLI Proxy API account-service configuration.
 - Required a real, reachable `/api/v1/status` check before onboarding can save the Usage Keeper connection and proceed.
@@ -66,6 +69,8 @@
 
 ### Verification
 
+- Local `testDebugUnitTest lintDebug assembleDebug --no-daemon` could not start because Gradle reported `Unable to establish loopback connection`. GitHub Actions must verify this update before a release is published.
+- Real-device verification remains pending; no Android device is connected.
 - Ran from repository root:
   - `rg -n -i 'private-lan-host|private-reverse-proxy|personal-email|local-windows-path|shared-linux-path|legacy-project-name' .gitignore AGENTS.md DECISIONS.md PROGRESS.md TODO.md cpa-android output/ui/cpa-android-developer-spec.md`
   - Result: no matches in tracked CPA Android files after rewriting `PROGRESS.md`.
@@ -93,11 +98,11 @@
 
 - Source repository: `https://github.com/bigfeng09/cpa-android`
 - Current branch: `master`
-- Current source version: `0.4.0` (`versionCode 7`)
+- Current source version: `0.5.1` (`versionCode 9`)
 - Repository visibility: `public`
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
 - Public APK release before this local work: `v0.3.2`
-- Next action: install the verified `v0.4.0` APK over `v0.3.2` and validate onboarding, cache labeling, progressive loading, and credential persistence on a real phone.
+- Next action: verify `v0.5.1` in GitHub Actions, publish the tested APK, and validate overview/usage content on a real phone. Check signer compatibility before suggesting an in-place upgrade.
 
 ## Home Assistant Household Dashboard
 
