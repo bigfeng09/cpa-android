@@ -34,7 +34,7 @@ final class UrlUtils {
     }
 
     static String normalizeQuotaUrl(String raw, String defaultQuotaUrl) {
-        String value = trimOrDefault(raw, defaultQuotaUrl);
+        String value = extractEmbeddedAbsoluteUrl(trimOrDefault(raw, defaultQuotaUrl));
         if (!hasHttpScheme(value)) value = "https://" + value;
         value = stripUrlHashAndQuery(value);
         int apiIndex = value.indexOf(MANAGEMENT_API);
@@ -45,7 +45,7 @@ final class UrlUtils {
     }
 
     static String managementApiBaseFromUrl(String raw, String defaultQuotaUrl) {
-        String value = trimOrDefault(raw, defaultQuotaUrl);
+        String value = extractEmbeddedAbsoluteUrl(trimOrDefault(raw, defaultQuotaUrl));
         if (!hasHttpScheme(value)) value = "https://" + value;
         value = stripUrlHashAndQuery(value);
         int apiIndex = value.indexOf(MANAGEMENT_API);
@@ -69,6 +69,18 @@ final class UrlUtils {
     private static String trimOrDefault(String raw, String fallback) {
         String value = raw == null ? "" : raw.trim();
         return value.length() == 0 ? fallback : value;
+    }
+
+    // Recover the actual URL when an older input flow saved a default prefix before it.
+    private static String extractEmbeddedAbsoluteUrl(String value) {
+        int http = value.lastIndexOf("http://");
+        int https = value.lastIndexOf("https://");
+        int start = Math.max(http, https);
+        if (start > 0) value = value.substring(start);
+        while (value.endsWith(")") || value.endsWith("]") || value.endsWith("}")) {
+            value = value.substring(0, value.length() - 1).trim();
+        }
+        return value;
     }
 
     private static boolean hasHttpScheme(String value) {

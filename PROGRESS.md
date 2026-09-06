@@ -20,6 +20,9 @@
 - Local secrets, API keys, passwords, build outputs, APK files, and machine-specific SDK config are excluded from Git.
 
 ### Latest Fixes
+- Fixed account refresh after an older input flow stored the management URL as a default-address prefix plus the real URL. The app now extracts the embedded absolute URL and persists the corrected management-page URL.
+- Verified on the connected Android phone: account refresh returned two Codex auth files, with one enabled account showing quota data and one server-disabled account shown as disabled.
+- Updated the app to `v0.5.2` (`versionCode 10`).
 - Fixed the overview and usage rendering branches: the range selector no longer prevents page content, loading indicators, and errors from rendering.
 - Added nine Robolectric rendering regression tests for actual metrics, model/credential empty states, tab/range changes, loading, errors, and cached refresh.
 - Updated the app to `v0.5.1` (`versionCode 9`).
@@ -106,7 +109,7 @@
 - Its Debug signer differs from `v0.5.0`, so an in-place upgrade is not supported. Preserve the previous app and connection settings until a migration is arranged.
 - Old remote release/tag `apk-20260709-192327` was deleted before publication.
 - Public APK release before this local work: `v0.3.2`
-- Next action: arrange a settings-preserving migration, then validate `v0.5.1` overview/usage content on a real Android phone; no Android device is connected to this PC.
+- Next action: verify and publish `v0.5.2`, then install it on the connected Android phone without clearing app data.
 
 ## Home Assistant Household Dashboard
 

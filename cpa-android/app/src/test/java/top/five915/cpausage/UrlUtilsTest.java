@@ -49,6 +49,21 @@ public class UrlUtilsTest {
     }
 
     @Test
+    public void normalizeQuotaUrlRecoversAbsoluteUrlSavedAfterDefaultPrefix() {
+        assertEquals("https://example.test:5000/management.html#/quota", UrlUtils.normalizeQuotaUrl("https://your-domain.example/https://example.test:5000/management.html#/login", DEFAULT_QUOTA));
+    }
+
+    @Test
+    public void managementApiBaseRecoversAbsoluteUrlSavedAfterDefaultPrefix() {
+        assertEquals("https://example.test:5000/v0/management", UrlUtils.managementApiBaseFromUrl("https://your-domain.example/https://example.test:5000/management.html#/login", DEFAULT_QUOTA));
+    }
+
+    @Test
+    public void normalizeQuotaUrlRecoversEmbeddedHttpUrl() {
+        assertEquals("http://192.168.1.10:8317/management.html#/quota", UrlUtils.normalizeQuotaUrl("https://your-domain.example/http://192.168.1.10:8317/management.html#/login", DEFAULT_QUOTA));
+    }
+
+    @Test
     public void managementApiBaseAcceptsAllSupportedInputs() {
         assertEquals("https://example.test/v0/management", UrlUtils.managementApiBaseFromUrl("https://example.test", DEFAULT_QUOTA));
         assertEquals("https://example.test/v0/management", UrlUtils.managementApiBaseFromUrl("https://example.test/management.html#/quota", DEFAULT_QUOTA));
